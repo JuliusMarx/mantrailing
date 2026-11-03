@@ -1,0 +1,17 @@
+[build]
+  command = "npm run build"
+  publish = "dist/mantrailing/browser"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Single-Page-App: alle Routen auf index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/ngsw-worker.js"
+  [headers.values]
+    Cache-Control = "no-cache"

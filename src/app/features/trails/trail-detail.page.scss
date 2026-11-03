@@ -1,0 +1,38 @@
+.map-box {
+  position: relative;
+  height: 55vh;
+
+  &.full {
+    position: absolute;
+    inset: 0;
+    height: auto;
+  }
+}
+
+.fullscreen-toggle {
+  position: absolute;
+  right: 8px;
+  bottom: calc(8px + env(safe-area-inset-bottom));
+  z-index: 6;
+}
+
+.message {
+  background: var(--ion-color-light);
+  border-left: 4px solid var(--ion-color-secondary);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+
+  p {
+    margin: 4px 0 0;
+    white-space: pre-line;
+  }
+}
+
+.actions ion-button {
+  margin-bottom: 8px;
+}
+
+.small {
+  font-size: 13px;
+}

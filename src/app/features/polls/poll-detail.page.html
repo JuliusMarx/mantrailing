@@ -1,0 +1,121 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start"><ion-back-button defaultHref="/app/termine" /></ion-buttons>
+    <ion-title>Terminumfrage</ion-title>
+    @if (auth.isTrainer() && detail() && detail()!.poll.status !== 'finalized') {
+      <ion-buttons slot="end">
+        <ion-button (click)="menu()" aria-label="Aktionen">
+          <ion-icon slot="icon-only" name="ellipsis-vertical" />
+        </ion-button>
+      </ion-buttons>
+    }
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  @if (loading()) {
+    <div class="ion-text-center"><ion-spinner /></div>
+  } @else if (detail(); as d) {
+    <h1>{{ d.poll.title }}</h1>
+    @if (d.poll.description) {
+      <p class="description">{{ d.poll.description }}</p>
+    }
+    @if (d.poll.meeting_address) {
+      <p class="meta"><ion-icon name="location-outline" />{{ d.poll.meeting_address }}</p>
+    }
+    @if (d.poll.deadline) {
+      <p class="meta"><ion-icon name="time-outline" />Abstimmen bis {{ d.poll.deadline | date: 'EEE, d. MMM, HH:mm' }} Uhr</p>
+    }
+
+    @if (d.poll.status === 'finalized') {
+      <div class="banner success">
+        Der Termin steht fest.
+        @if (d.poll.appointment_id) {
+          <a [routerLink]="['/app/termine', d.poll.appointment_id]">Zum Termin</a>
+        }
+      </div>
+    } @else if (closed()) {
+      <div class="banner">Die Umfrage ist geschlossen.</div>
+    }
+
+    <!-- Schritt 1: Hunde -->
+    @if (myDogs().length) {
+      <h3>Mit welchen Hunden kommst du?</h3>
+      <div class="dogs">
+        @for (dog of myDogs(); track dog.id) {
+          <ion-chip [color]="selectedDogs().has(dog.id) ? 'primary' : 'medium'" [outline]="!selectedDogs().has(dog.id)"
+            (click)="toggleDog(dog.id)" [disabled]="closed()">
+            @if (selectedDogs().has(dog.id)) { <ion-icon name="checkmark" /> }
+            <ion-label>{{ dog.name }}</ion-label>
+          </ion-chip>
+        }
+      </div>
+    } @else if (!auth.isTrainer()) {
+      <p class="muted">Lege zuerst unter „Hunde“ einen Hund an, um abzustimmen.</p>
+    }
+
+    <!-- Schritt 2: Optionen -->
+    <h3>Wann passt es dir?</h3>
+    @for (o of d.options; track o.id) {
+      <div class="option" [class.final]="d.poll.final_option_id === o.id">
+        <div class="option-head">
+          <div>
+            <strong>{{ o.starts_at | date: 'EEEE, d. MMMM' }}</strong><br />
+            {{ o.starts_at | date: 'HH:mm' }}{{ o.ends_at ? ' – ' + (o.ends_at | date: 'HH:mm') : '' }} Uhr
+          </div>
+          @if (summary(o.id); as s) {
+            <div class="counts">
+              <span class="yes"><ion-icon name="paw-outline" /> {{ s.yes_dogs }}{{ o.max_dogs ? '/' + o.max_dogs : '' }}</span>
+              @if (s.maybe_dogs) {
+                <span class="maybe">+{{ s.maybe_dogs }} vielleicht</span>
+              }
+            </div>
+          }
+        </div>
+
+        @if (myDogs().length && d.poll.status !== 'finalized') {
+          <ion-segment [value]="votes()[o.id]" (ionChange)="setVote(o.id, $any($event.detail.value))" [disabled]="closed()">
+            <ion-segment-button value="yes"><ion-label>Ja</ion-label></ion-segment-button>
+            <ion-segment-button value="maybe"><ion-label>Vielleicht</ion-label></ion-segment-button>
+            <ion-segment-button value="no"><ion-label>Nein</ion-label></ion-segment-button>
+          </ion-segment>
+        }
+
+        @if (auth.isTrainer()) {
+          @if (responses()[o.id]; as r) {
+            <div class="responses">
+              @for (y of r.yes; track y.name) {
+                <div><span class="dot yes"></span>{{ y.name }} <span class="muted">({{ y.dogs.join(', ') }})</span></div>
+              }
+              @for (m of r.maybe; track m.name) {
+                <div><span class="dot maybe"></span>{{ m.name }} <span class="muted">({{ m.dogs.join(', ') }})</span></div>
+              }
+              @if (r.no.length) {
+                <div class="muted"><span class="dot no"></span>Nein: {{ r.no.join(', ') }}</div>
+              }
+              @if (!r.yes.length && !r.maybe.length && !r.no.length) {
+                <div class="muted">Noch keine Antworten.</div>
+              }
+            </div>
+          }
+          @if (d.poll.status !== 'finalized') {
+            <ion-button expand="block" fill="outline" size="small" (click)="finalize(o)">
+              <ion-icon slot="start" name="checkmark-circle" />Diesen Termin festlegen
+            </ion-button>
+          }
+        }
+      </div>
+    }
+
+    @if (myDogs().length && !closed()) {
+      <ion-button expand="block" class="submit" (click)="submit()" [disabled]="!canSubmit() || saving()">
+        {{ answered() ? 'Antwort aktualisieren' : 'Antwort abschicken' }}
+      </ion-button>
+      @if (!selectedDogs().size) {
+        <p class="muted small ion-text-center">Wähle mindestens einen Hund aus.</p>
+      }
+    }
+  } @else {
+    <div class="empty-state"><p>Umfrage nicht gefunden.</p></div>
+  }
+</ion-content>

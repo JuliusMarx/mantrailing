@@ -1,0 +1,209 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-button (click)="back()" aria-label="Zurück">
+        <ion-icon slot="icon-only" name="arrow-back" />
+      </ion-button>
+    </ion-buttons>
+    <ion-title>{{ trail() ? 'Trail bearbeiten' : 'Neuer Trail' }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="searchOpen.set(!searchOpen())" aria-label="Ort suchen">
+        <ion-icon slot="icon-only" name="search" />
+      </ion-button>
+      <ion-button (click)="openSave()" [disabled]="recorder.active()" strong>Speichern</ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+  @if (searchOpen()) {
+    <ion-toolbar>
+      <ion-searchbar
+        placeholder="Ort oder Adresse"
+        [debounce]="0"
+        (keyup.enter)="search($any($event.target).value)"
+        (ionClear)="searchResults.set([])"
+        enterkeyhint="search"
+        showCancelButton="never"
+      />
+    </ion-toolbar>
+  }
+</ion-header>
+
+<ion-content [scrollY]="false">
+  <app-map
+    [lines]="mapLines()"
+    [markers]="mapMarkers()"
+    [center]="initialCenter()"
+    [zoom]="initialCenter() ? 15 : null"
+    [fitCoords]="fitCoords()"
+    [showUserLocation]="true"
+    (ready)="onMapReady()"
+    (mapClick)="onMapClick($event)"
+    (markerClick)="onMarkerClick($event)"
+    (markerDragEnd)="onMarkerDrag($event)"
+  />
+
+  @if (searching() || searchResults().length) {
+    <div class="search-results">
+      @if (searching()) {
+        <div class="ion-padding ion-text-center"><ion-spinner name="dots" /></div>
+      }
+      <ion-list>
+        @for (r of searchResults(); track r.label) {
+          <ion-item button (click)="pickResult(r)" detail="false">
+            <ion-label class="ion-text-wrap">{{ r.label }}</ion-label>
+          </ion-item>
+        }
+      </ion-list>
+    </div>
+  }
+
+  @if (recorder.active()) {
+    <!-- Aufnahme läuft -->
+    <div class="panel recording">
+      <div class="rec-status">
+        <span class="rec-dot"></span>
+        <strong>Aufnahme</strong>
+        <span>{{ recorder.length() | number: '1.0-0' }} m</span>
+        <span class="muted">GPS ±{{ recorder.accuracy() ?? '–' }} m</span>
+      </div>
+      @if (recorder.error()) {
+        <p class="rec-error">{{ recorder.error() }}</p>
+      }
+      <p class="muted small">Display bitte eingeschaltet lassen.</p>
+      <div class="row">
+        <ion-button fill="outline" (click)="cancelRecording()">Verwerfen</ion-button>
+        <ion-button fill="outline" (click)="markWhileRecording()">Wegpunkt</ion-button>
+        <ion-button color="danger" (click)="stopRecording()">
+          <ion-icon slot="start" name="stop-circle-outline" />Stopp
+        </ion-button>
+      </div>
+    </div>
+  } @else if (store.selectedPoint(); as point) {
+    <!-- Ausgewählter Punkt -->
+    <div class="panel">
+      <div class="panel-head">
+        <strong>Punkt {{ selectedIndex() + 1 }}</strong>
+        <ion-button fill="clear" size="small" (click)="store.selectedId.set(null)" aria-label="Schließen">
+          <ion-icon slot="icon-only" name="close" />
+        </ion-button>
+      </div>
+      <div class="chips">
+        @for (t of allTypes; track t.type) {
+          <ion-chip
+            [outline]="point.type !== t.type"
+            [style.--background]="point.type === t.type ? t.color : null"
+            [style.color]="point.type === t.type ? '#fff' : null"
+            (click)="setType(t.type)"
+          >
+            {{ t.label }}
+          </ion-chip>
+        }
+      </div>
+      @if (point.type !== 'via') {
+        <ion-input
+          fill="outline"
+          label="Notiz"
+          labelPlacement="floating"
+          [value]="point.note ?? ''"
+          (ionChange)="setNote($any($event.target).value)"
+        />
+      }
+      @if (selectedSegmentMode(); as mode) {
+        <div class="seg-mode">
+          <span class="muted small">Abschnitt bis hier</span>
+          <ion-segment [value]="mode === 'recorded' ? null : mode" (ionChange)="setSelectedSegmentMode($any($event.detail.value))">
+            <ion-segment-button value="follow"><ion-label>Wege folgen</ion-label></ion-segment-button>
+            <ion-segment-button value="straight"><ion-label>Luftlinie</ion-label></ion-segment-button>
+          </ion-segment>
+        </div>
+      }
+      <ion-button expand="block" fill="clear" color="danger" (click)="removeSelected()">
+        <ion-icon slot="start" name="trash-outline" />Punkt löschen
+      </ion-button>
+    </div>
+  } @else {
+    <!-- Zeichenleiste -->
+    <div class="panel">
+      <div class="stats">
+        <div>
+          <strong>{{ lengthText() }}</strong>
+          <span class="muted">Länge</span>
+        </div>
+        <div>
+          <strong>{{ durationText() }}</strong>
+          <span class="muted">Gehzeit</span>
+        </div>
+        <div>
+          <strong>{{ store.points().length }}</strong>
+          <span class="muted">Punkte</span>
+        </div>
+        @if (store.routingPending()) {
+          <ion-spinner name="crescent" class="routing-spinner" />
+        }
+      </div>
+
+      @if (!store.points().length) {
+        <p class="hint">Tippe auf die Karte, um den Startpunkt zu setzen.</p>
+      } @else if (store.points().length === 1) {
+        <p class="hint">Tippe weiter, um die Route zu zeichnen.</p>
+      }
+
+      <div class="row">
+        <ion-segment class="mode" [value]="store.drawMode()" (ionChange)="store.drawMode.set($any($event.detail.value))">
+          <ion-segment-button value="follow"><ion-label>Wege folgen</ion-label></ion-segment-button>
+          <ion-segment-button value="straight"><ion-label>Luftlinie</ion-label></ion-segment-button>
+        </ion-segment>
+      </div>
+      <div class="row tools">
+        <ion-button fill="clear" (click)="store.undo()" [disabled]="!store.canUndo()" aria-label="Rückgängig">
+          <ion-icon slot="icon-only" name="arrow-undo-outline" />
+        </ion-button>
+        <ion-button fill="clear" (click)="store.redo()" [disabled]="!store.canRedo()" aria-label="Wiederholen">
+          <ion-icon slot="icon-only" name="arrow-redo-outline" />
+        </ion-button>
+        <ion-button fill="clear" (click)="locate()" aria-label="Mein Standort">
+          <ion-icon slot="icon-only" name="locate-outline" />
+        </ion-button>
+        <ion-button fill="clear" (click)="openMenu()" aria-label="Weitere Aktionen">
+          <ion-icon slot="icon-only" name="ellipsis-horizontal" />
+        </ion-button>
+      </div>
+    </div>
+  }
+
+  <ion-modal
+    [isOpen]="saveSheetOpen()"
+    [initialBreakpoint]="0.75"
+    [breakpoints]="[0, 0.75, 1]"
+    (didDismiss)="saveSheetOpen.set(false)"
+  >
+    <ng-template>
+      <ion-content class="ion-padding">
+        <h2>Trail speichern</h2>
+        <p class="muted">{{ lengthText() }} · ca. {{ durationText() }} · {{ store.points().length }} Punkte</p>
+        <ion-list lines="none" class="form">
+          <ion-input fill="outline" label="Name" labelPlacement="floating" [(ngModel)]="name" required />
+          <ion-textarea fill="outline" label="Beschreibung" labelPlacement="floating" [autoGrow]="true" [(ngModel)]="description" />
+          <ion-item lines="none" class="range-item">
+            <ion-label position="stacked">Schwierigkeit: {{ difficulty }} / 5</ion-label>
+            <ion-range [min]="1" [max]="5" [step]="1" [snaps]="true" [ticks]="true" [(ngModel)]="difficulty" />
+          </ion-item>
+          <ion-select fill="outline" label="Untergrund" labelPlacement="floating" interface="action-sheet" [(ngModel)]="surface" cancelText="Abbrechen">
+            <ion-select-option [value]="null">Keine Angabe</ion-select-option>
+            @for (s of surfaces; track s) {
+              <ion-select-option [value]="s">{{ s }}</ion-select-option>
+            }
+          </ion-select>
+          <ion-select fill="outline" label="Termin" labelPlacement="floating" interface="action-sheet" [(ngModel)]="appointmentId" cancelText="Abbrechen">
+            <ion-select-option [value]="null">Keinem Termin zuordnen</ion-select-option>
+            @for (a of upcoming(); track a.id) {
+              <ion-select-option [value]="a.id">{{ a.title }} · {{ a.starts_at | date: 'd. MMM, HH:mm' }}</ion-select-option>
+            }
+          </ion-select>
+        </ion-list>
+        <ion-button expand="block" (click)="save()" [disabled]="saving()">
+          <ion-icon slot="start" name="checkmark" />Speichern
+        </ion-button>
+      </ion-content>
+    </ng-template>
+  </ion-modal>
+</ion-content>

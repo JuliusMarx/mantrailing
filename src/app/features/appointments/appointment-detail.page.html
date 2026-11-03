@@ -1,0 +1,176 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start"><ion-back-button defaultHref="/app/termine" /></ion-buttons>
+    <ion-title>Termin</ion-title>
+    @if (auth.isTrainer() && appointment()) {
+      <ion-buttons slot="end">
+        <ion-button (click)="trainerMenu()" aria-label="Aktionen">
+          <ion-icon slot="icon-only" name="ellipsis-vertical" />
+        </ion-button>
+      </ion-buttons>
+    }
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  @if (loading()) {
+    <div class="ion-padding ion-text-center"><ion-spinner /></div>
+  } @else if (appointment(); as a) {
+    @if (a.meeting_point) {
+      <div class="map-box">
+        <app-map [markers]="markers()" [center]="a.meeting_point.coordinates" [zoom]="15" [showStyleSwitch]="false" />
+      </div>
+    }
+
+    <div class="ion-padding">
+      @if (a.status === 'cancelled') {
+        <div class="cancelled-banner">Dieser Termin wurde abgesagt.</div>
+      }
+      <h1>{{ a.title }}</h1>
+      <p class="meta">
+        <ion-icon name="time-outline" />
+        {{ a.starts_at | date: 'EEEE, d. MMMM y' }}<br />
+        {{ a.starts_at | date: 'HH:mm' }}{{ a.ends_at ? ' – ' + (a.ends_at | date: 'HH:mm') : '' }} Uhr
+      </p>
+      @if (a.meeting_address || a.meeting_point) {
+        <p class="meta">
+          <ion-icon name="location-outline" />
+          {{ a.meeting_address || 'Treffpunkt auf der Karte' }}
+          @if (navUrl(); as url) {
+            <br /><a [href]="url" target="_blank" rel="noopener">Navigation starten</a>
+          }
+        </p>
+      }
+      <p class="meta">
+        <ion-icon name="paw-outline" />
+        @if (a.max_dogs) {
+          {{ a.summary?.registered_dogs ?? 0 }} von {{ a.max_dogs }} Hundeplätzen belegt
+          @if (a.summary?.waitlist_dogs) { · {{ a.summary!.waitlist_dogs }} auf der Warteliste }
+        } @else {
+          {{ a.summary?.registered_dogs ?? 0 }} Hunde angemeldet
+        }
+      </p>
+      @if (a.registration_deadline) {
+        <p class="muted small">Anmeldeschluss: {{ a.registration_deadline | date: 'EEE, d. MMM, HH:mm' }} Uhr</p>
+      }
+      @if (a.notes) {
+        <p class="notes">{{ a.notes }}</p>
+      }
+    </div>
+
+    <!-- Eigene Anmeldungen -->
+    <ion-list>
+      <ion-list-header><ion-label>Meine Anmeldung</ion-label></ion-list-header>
+      @for (p of a.mine; track p.id) {
+        <ion-item>
+          <ion-icon slot="start" name="paw-outline" />
+          <ion-label>{{ p.dogs?.name }}</ion-label>
+          <ion-badge slot="end" [color]="p.status === 'registered' ? 'success' : 'warning'">
+            {{ p.status === 'registered' ? 'Angemeldet' : 'Warteliste' }}
+          </ion-badge>
+          @if (a.status === 'planned') {
+            <ion-button slot="end" fill="clear" color="medium" size="small" (click)="cancel(p)">Abmelden</ion-button>
+          }
+        </ion-item>
+      } @empty {
+        <ion-item lines="none"><ion-note>Du bist noch nicht angemeldet.</ion-note></ion-item>
+      }
+    </ion-list>
+
+    @if (registrationOpen() && (availableDogs().length || !myDogs().length)) {
+      <div class="ion-padding">
+        <ion-button expand="block" (click)="openRegister()">
+          <ion-icon slot="start" name="add" />
+          {{ a.mine.length ? 'Weiteren Hund anmelden' : 'Mit Hund anmelden' }}
+        </ion-button>
+        @if (freeSpots() === 0) {
+          <p class="muted small ion-text-center">Alle Plätze sind belegt – neue Anmeldungen kommen auf die Warteliste.</p>
+        }
+      </div>
+    } @else if (!registrationOpen() && a.status === 'planned') {
+      <p class="ion-padding-horizontal muted small">Die Anmeldung ist geschlossen.</p>
+    }
+
+    <!-- Trainer: Teilnehmerliste und Trails -->
+    @if (auth.isTrainer()) {
+      <ion-list>
+        <ion-list-header><ion-label>Angemeldete Hunde ({{ registered().length }})</ion-label></ion-list-header>
+        @for (p of registered(); track p.id) {
+          <ion-item button (click)="participantMenu(p)" detail="false">
+            <ion-label>
+              <h3>{{ p.dogs?.name }}</h3>
+              <p>{{ p.profiles?.full_name }}{{ p.dogs?.breed ? ' · ' + p.dogs?.breed : '' }}</p>
+            </ion-label>
+          </ion-item>
+        } @empty {
+          <ion-item lines="none"><ion-note>Noch keine Anmeldungen.</ion-note></ion-item>
+        }
+      </ion-list>
+      @if (waitlist().length) {
+        <ion-list>
+          <ion-list-header><ion-label>Warteliste ({{ waitlist().length }})</ion-label></ion-list-header>
+          @for (p of waitlist(); track p.id; let i = $index) {
+            <ion-item button (click)="participantMenu(p)" detail="false">
+              <ion-note slot="start">{{ i + 1 }}.</ion-note>
+              <ion-label>
+                <h3>{{ p.dogs?.name }}</h3>
+                <p>{{ p.profiles?.full_name }}</p>
+              </ion-label>
+            </ion-item>
+          }
+        </ion-list>
+      }
+      <ion-list>
+        <ion-list-header><ion-label>Trails für diesen Termin</ion-label></ion-list-header>
+        @for (t of trails(); track t.id) {
+          <ion-item [routerLink]="['/app/trails', t.id]" detail>
+            <ion-icon slot="start" name="map-outline" />
+            <ion-label>
+              <h3>{{ t.name }}</h3>
+              <p>{{ distance(t.length_m) }}</p>
+            </ion-label>
+          </ion-item>
+        }
+        <ion-item button [routerLink]="['/editor/neu']" [queryParams]="{ termin: a.id }" detail="false">
+          <ion-icon slot="start" name="add" color="primary" />
+          <ion-label color="primary">Trail zeichnen</ion-label>
+        </ion-item>
+      </ion-list>
+    }
+
+    <ion-modal [isOpen]="registerOpen()" [initialBreakpoint]="0.6" [breakpoints]="[0, 0.6, 0.9]" (didDismiss)="registerOpen.set(false)">
+      <ng-template>
+        <ion-content class="ion-padding">
+          <h2>Mit welchen Hunden kommst du?</h2>
+          @if (freeSpots() !== null) {
+            <p class="muted">
+              Noch {{ freeSpots() }} {{ freeSpots() === 1 ? 'Platz' : 'Plätze' }} frei.
+              Weitere Hunde kommen auf die Warteliste.
+            </p>
+          }
+          <ion-list>
+            @for (dog of availableDogs(); track dog.id) {
+              <ion-item>
+                <ion-checkbox
+                  justify="space-between"
+                  [checked]="selectedDogs().has(dog.id)"
+                  (ionChange)="toggleDog(dog.id, $event.detail.checked)"
+                >
+                  <ion-label>
+                    <h3>{{ dog.name }}</h3>
+                    <p>{{ dog.breed }}</p>
+                  </ion-label>
+                </ion-checkbox>
+              </ion-item>
+            }
+          </ion-list>
+          <ion-button expand="block" (click)="register()" [disabled]="!selectedDogs().size">
+            {{ selectedDogs().size > 1 ? selectedDogs().size + ' Hunde anmelden' : 'Anmelden' }}
+          </ion-button>
+        </ion-content>
+      </ng-template>
+    </ion-modal>
+  } @else {
+    <div class="empty-state"><p>Termin nicht gefunden.</p></div>
+  }
+</ion-content>

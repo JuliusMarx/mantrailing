@@ -1,0 +1,136 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>{{ auth.schoolName() || 'Termine' }}</ion-title>
+  </ion-toolbar>
+  <ion-toolbar>
+    <ion-segment [value]="tab()" (ionChange)="tab.set($any($event.detail.value))">
+      <ion-segment-button value="termine"><ion-label>Termine</ion-label></ion-segment-button>
+      <ion-segment-button value="umfragen">
+        <ion-label>
+          Umfragen
+          @if (unansweredCount()) {
+            <ion-badge color="secondary">{{ unansweredCount() }}</ion-badge>
+          }
+        </ion-label>
+      </ion-segment-button>
+    </ion-segment>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="load($event)">
+    <ion-refresher-content />
+  </ion-refresher>
+
+  @if (loading()) {
+    <ion-list>
+      @for (i of [1, 2, 3]; track i) {
+        <ion-item><ion-label><ion-skeleton-text animated style="width: 60%" /><ion-skeleton-text animated style="width: 35%" /></ion-label></ion-item>
+      }
+    </ion-list>
+  } @else if (tab() === 'termine') {
+    @if (!appointments().length) {
+      <div class="empty-state">
+        <ion-icon name="calendar-outline" />
+        <p>
+          Keine anstehenden Termine.
+          @if (unansweredCount()) {
+            <br />Schau bei den Umfragen vorbei – dort wird gerade ein Termin gesucht.
+          }
+        </p>
+      </div>
+    }
+    @for (group of groups(); track group.label) {
+      <ion-list>
+        <ion-list-header><ion-label>{{ group.label }}</ion-label></ion-list-header>
+        @for (a of group.items; track a.id) {
+          <ion-item [routerLink]="['/app/termine', a.id]" detail [class.cancelled]="a.status === 'cancelled'">
+            <div slot="start" class="date">
+              <span class="day">{{ a.starts_at | date: 'd' }}</span>
+              <span class="wd">{{ a.starts_at | date: 'EEE' }}</span>
+            </div>
+            <ion-label>
+              <h2>{{ a.title }}</h2>
+              <p>
+                {{ a.starts_at | date: 'HH:mm' }}{{ a.ends_at ? '–' + (a.ends_at | date: 'HH:mm') : '' }} Uhr
+                @if (a.meeting_address) { · {{ a.meeting_address }} }
+              </p>
+              <p class="badges">
+                @if (a.status === 'cancelled') {
+                  <ion-badge color="danger">Abgesagt</ion-badge>
+                } @else {
+                  <ion-badge [color]="isFull(a) ? 'warning' : 'light'">{{ spots(a) }}</ion-badge>
+                  @switch (myStatus(a)) {
+                    @case ('registered') {
+                      <ion-badge color="success">Angemeldet ({{ a.mine.length }})</ion-badge>
+                    }
+                    @case ('waitlist') {
+                      <ion-badge color="warning">Warteliste</ion-badge>
+                    }
+                  }
+                }
+              </p>
+            </ion-label>
+          </ion-item>
+        }
+      </ion-list>
+    }
+
+    @if (past(); as pastList) {
+      <ion-list>
+        <ion-list-header><ion-label>Vergangene Termine</ion-label></ion-list-header>
+        @for (a of pastList; track a.id) {
+          <ion-item [routerLink]="['/app/termine', a.id]" detail class="past">
+            <ion-label>
+              <h3>{{ a.title }}</h3>
+              <p>{{ a.starts_at | date: 'EEE, d. MMM y' }}</p>
+            </ion-label>
+          </ion-item>
+        } @empty {
+          <ion-item lines="none"><ion-label class="muted">Keine vergangenen Termine.</ion-label></ion-item>
+        }
+      </ion-list>
+    } @else {
+      <div class="ion-padding ion-text-center">
+        <ion-button fill="clear" size="small" (click)="showPast()">Vergangene Termine anzeigen</ion-button>
+      </div>
+    }
+  } @else {
+    @if (!polls().length) {
+      <div class="empty-state">
+        <ion-icon name="help-circle-outline" />
+        <p>Gerade keine offenen Terminumfragen.</p>
+      </div>
+    }
+    <ion-list>
+      @for (p of polls(); track p.id) {
+        <ion-item [routerLink]="['/app/umfragen', p.id]" detail>
+          <ion-label>
+            <h2>{{ p.title }}</h2>
+            <p>{{ p.poll_options?.length ?? 0 }} Terminvorschläge{{ p.meeting_address ? ' · ' + p.meeting_address : '' }}</p>
+            <p class="badges">
+              @if (pollClosed(p)) {
+                <ion-badge color="medium">Geschlossen</ion-badge>
+              } @else if (p.deadline) {
+                <ion-badge color="light"><ion-icon name="time-outline" /> bis {{ p.deadline | date: 'd. MMM, HH:mm' }}</ion-badge>
+              }
+              @if (p.answered) {
+                <ion-badge color="success"><ion-icon name="checkmark-circle" /> abgestimmt</ion-badge>
+              } @else if (!auth.isTrainer()) {
+                <ion-badge color="secondary">Bitte abstimmen</ion-badge>
+              }
+            </p>
+          </ion-label>
+        </ion-item>
+      }
+    </ion-list>
+  }
+
+  @if (auth.isTrainer()) {
+    <ion-fab slot="fixed" vertical="bottom" horizontal="end">
+      <ion-fab-button (click)="create()" aria-label="Neuer Termin oder Umfrage">
+        <ion-icon name="add" />
+      </ion-fab-button>
+    </ion-fab>
+  }
+</ion-content>

@@ -1,0 +1,143 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/app/trails" />
+    </ion-buttons>
+    <ion-title>{{ trail()?.name ?? 'Trail' }}</ion-title>
+    @if (auth.isTrainer() && trail()) {
+      <ion-buttons slot="end">
+        <ion-button [routerLink]="['/editor', trail()!.id]" aria-label="Bearbeiten">
+          <ion-icon slot="icon-only" name="create-outline" />
+        </ion-button>
+      </ion-buttons>
+    }
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [scrollY]="!fullscreen()">
+  @if (loading()) {
+    <div class="ion-padding ion-text-center"><ion-spinner /></div>
+  } @else if (!trail()) {
+    <div class="empty-state"><p>Dieser Trail existiert nicht oder ist nicht für dich freigegeben.</p></div>
+  } @else {
+    <div class="map-box" [class.full]="fullscreen()">
+      <app-trail-view
+        [route]="trail()!.route"
+        [waypoints]="trail()!.waypoints"
+        [totalLength]="trail()!.length_m"
+      />
+      <ion-button class="fullscreen-toggle" size="small" color="light" (click)="fullscreen.set(!fullscreen())"
+        [attr.aria-label]="fullscreen() ? 'Vollbild beenden' : 'Vollbild'">
+        <ion-icon slot="icon-only" [name]="fullscreen() ? 'contract-outline' : 'expand-outline'" />
+      </ion-button>
+    </div>
+
+    @if (!fullscreen()) {
+      <div class="ion-padding">
+        @if (myAssignment()?.message) {
+          <div class="message">
+            <strong>Nachricht</strong>
+            <p>{{ myAssignment()!.message }}</p>
+          </div>
+        }
+
+        <app-trail-facts
+          [length]="trail()!.length_m"
+          [difficulty]="trail()!.difficulty"
+          [surface]="trail()!.surface"
+          [description]="trail()!.description"
+          [waypoints]="trail()!.waypoints"
+        />
+
+        @if (!auth.isTrainer()) {
+          <ion-button expand="block" class="ion-margin-top" (click)="fullscreen.set(true)">
+            Trail legen – Karte groß
+          </ion-button>
+        }
+      </div>
+
+      @if (auth.isTrainer()) {
+        <ion-list>
+          <ion-list-header><ion-label>Verschickt an</ion-label></ion-list-header>
+          @for (a of assignments(); track a.id) {
+            <ion-item>
+              <ion-label>
+                <h3>{{ a.profiles?.full_name || 'Unbekannt' }}</h3>
+                <p>
+                  {{ a.created_at | date: 'd. MMM, HH:mm' }}
+                  @if (a.seen_at) { · gesehen } @else { · noch nicht geöffnet }
+                </p>
+              </ion-label>
+              <ion-button slot="end" fill="clear" color="medium" (click)="unassign(a)" aria-label="Zuweisung entfernen">
+                <ion-icon slot="icon-only" name="close-circle-outline" />
+              </ion-button>
+            </ion-item>
+          } @empty {
+            <ion-item lines="none"><ion-note>Noch an niemanden verschickt.</ion-note></ion-item>
+          }
+        </ion-list>
+
+        <div class="ion-padding actions">
+          <ion-button expand="block" (click)="openAssign()">
+            <ion-icon slot="start" name="person-add-outline" />An Kund:innen schicken
+          </ion-button>
+          <ion-button expand="block" fill="outline" (click)="share()">
+            <ion-icon slot="start" name="share-social-outline" />Link teilen
+          </ion-button>
+          @if (trail()!.share_token) {
+            <p class="muted small">
+              <ion-icon name="link-outline" /> Jeder mit dem Link kann den Trail ansehen.
+              <a href="javascript:void(0)" (click)="stopSharing()">Freigabe beenden</a>
+            </p>
+          }
+          <ion-button expand="block" fill="clear" color="danger" (click)="remove()">
+            <ion-icon slot="start" name="trash-outline" />Trail löschen
+          </ion-button>
+        </div>
+      }
+    }
+  }
+
+  <ion-modal [isOpen]="assignOpen()" [initialBreakpoint]="0.85" [breakpoints]="[0, 0.85, 1]" (didDismiss)="assignOpen.set(false)">
+    <ng-template>
+      <ion-header>
+        <ion-toolbar>
+          <ion-title>Trail verschicken</ion-title>
+          <ion-buttons slot="end">
+            <ion-button (click)="assign()" [disabled]="!selected().size" strong>Senden</ion-button>
+          </ion-buttons>
+        </ion-toolbar>
+      </ion-header>
+      <ion-content>
+        <ion-list>
+          @for (c of customers(); track c.user_id) {
+            @if (c.user_id !== auth.userId()) {
+              <ion-item>
+                <ion-checkbox
+                  justify="space-between"
+                  [checked]="selected().has(c.user_id)"
+                  (ionChange)="toggle(c.user_id, $event.detail.checked)"
+                >
+                  <ion-label>
+                    <h3>{{ c.profiles?.full_name || 'Ohne Namen' }}</h3>
+                    <p>
+                      {{ c.role === 'trainer' ? 'Trainer:in' : (c.dogs.length ? c.dogs.map(dogName).join(', ') : 'Keine Hunde') }}
+                      @if (assignedIds().has(c.user_id)) { · hat ihn schon }
+                    </p>
+                  </ion-label>
+                </ion-checkbox>
+              </ion-item>
+            }
+          } @empty {
+            <ion-item lines="none"><ion-note>Noch keine Kund:innen in deiner Schule.</ion-note></ion-item>
+          }
+        </ion-list>
+        <div class="ion-padding">
+          <ion-textarea fill="outline" label="Nachricht (optional)" labelPlacement="floating" [autoGrow]="true"
+            placeholder="z. B. Bitte Samstag bis 8:30 legen, Gegenstand am Ende."
+            [(ngModel)]="message" />
+        </div>
+      </ion-content>
+    </ng-template>
+  </ion-modal>
+</ion-content>

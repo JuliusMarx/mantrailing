@@ -1,0 +1,79 @@
+@import '@ionic/angular/css/core.css';
+@import '@ionic/angular/css/normalize.css';
+@import '@ionic/angular/css/structure.css';
+@import '@ionic/angular/css/typography.css';
+@import '@ionic/angular/css/padding.css';
+@import '@ionic/angular/css/flex-utils.css';
+@import '@ionic/angular/css/display.css';
+@import '@ionic/angular/css/text-alignment.css';
+@import '@ionic/angular/css/palettes/dark.system.css';
+
+:root {
+  --ion-color-primary: #3b6e4f;
+  --ion-color-primary-rgb: 59, 110, 79;
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-primary-contrast-rgb: 255, 255, 255;
+  --ion-color-primary-shade: #346146;
+  --ion-color-primary-tint: #4f7d61;
+
+  --ion-color-secondary: #c07a2c;
+  --ion-color-secondary-rgb: 192, 122, 44;
+  --ion-color-secondary-contrast: #ffffff;
+  --ion-color-secondary-contrast-rgb: 255, 255, 255;
+  --ion-color-secondary-shade: #a96b27;
+  --ion-color-secondary-tint: #c68741;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ion-color-primary: #7fbf96;
+    --ion-color-primary-rgb: 127, 191, 150;
+    --ion-color-primary-contrast: #0d1f14;
+    --ion-color-primary-contrast-rgb: 13, 31, 20;
+    --ion-color-primary-shade: #70a884;
+    --ion-color-primary-tint: #8cc5a1;
+  }
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--ion-color-medium);
+  padding: 48px 24px;
+
+  ion-icon {
+    font-size: 56px;
+    display: block;
+    margin: 0 auto 12px;
+  }
+}
+
+.muted {
+  color: var(--ion-color-medium);
+}
+
+// Marker auf der Karte
+.wp-marker {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 18px;
+  touch-action: none;
+  cursor: grab;
+
+  &.small {
+    width: 20px;
+    height: 20px;
+    border-width: 2px;
+    font-size: 11px;
+  }
+
+  &.selected {
+    outline: 3px solid var(--ion-color-secondary);
+  }
+}
