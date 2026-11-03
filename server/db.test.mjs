@@ -198,107 +198,114 @@ test('Anmeldung geht bis zum Beginn, auch am selben Tag – danach nicht mehr', 
   );
 });
 
-test('Umfrage: abstimmen, Zusammenfassung, festlegen', async () => {
+test('Umfrage: Hunde pro Vorschlag, mehrere Termine festlegen', async () => {
   await asUser(ids.trainer);
-  const poll = await one(
-    `insert into polls (school_id, title) values ($1, 'Wald-Trail') returning id`,
-    [ids.school],
-  );
-  const opts = await rows(
+  const poll = await one(`insert into polls (school_id, title) values ($1, 'Wald-Trail') returning id`, [ids.school]);
+  const [tue, wed, thu] = await rows(
     `insert into poll_options (poll_id, starts_at, max_dogs) values
        ($1, now() + interval '5 days', 2), ($1, now() + interval '6 days', 2), ($1, now() + interval '7 days', 2)
      returning id`,
     [poll.id],
   );
+  const choose = async (userId, choices) => {
+    await asUser(userId);
+    await db.query(`select submit_poll_response($1, $2)`, [poll.id, JSON.stringify(choices)]);
+  };
 
-  await asUser(ids.alice);
-  await db.query(`select submit_poll_response($1, $2, $3)`, [
-    poll.id,
-    [ids.aliceDog1, ids.aliceDog2],
-    JSON.stringify([
-      { option_id: opts[0].id, answer: 'yes' },
-      { option_id: opts[1].id, answer: 'no' },
-    ]),
+  // Alice: Dienstag mit beiden, Mittwoch nur mit Luna; Bob: Dienstag mit Rex
+  await choose(ids.alice, [
+    { option_id: tue.id, dog_ids: [ids.aliceDog1, ids.aliceDog2] },
+    { option_id: wed.id, dog_ids: [ids.aliceDog1] },
+    { option_id: thu.id, dog_ids: [] },
   ]);
+  await choose(ids.bob, [{ option_id: tue.id, dog_ids: [ids.bobDog1] }]);
+
   await asUser(ids.bob);
-  await db.query(`select submit_poll_response($1, $2, $3)`, [
-    poll.id,
-    [ids.bobDog1],
-    JSON.stringify([{ option_id: opts[0].id, answer: 'maybe' }]),
-  ]);
   await assert.rejects(
-    db.query(`select submit_poll_response($1, $2, '[]')`, [poll.id, [ids.aliceDog1]]),
+    db.query(`select submit_poll_response($1, $2)`, [
+      poll.id,
+      JSON.stringify([{ option_id: wed.id, dog_ids: [ids.aliceDog1] }]),
+    ]),
     /gehört nicht dir/,
   );
-  // Kunde darf nicht direkt in poll_votes schreiben
   await assert.rejects(
-    db.query(`insert into poll_votes (poll_option_id, user_id, answer) values ($1, $2, 'yes')`, [opts[1].id, ids.bob]),
+    db.query(`insert into poll_option_dogs (poll_option_id, dog_id, user_id) values ($1, $2, $3)`, [
+      wed.id,
+      ids.bobDog1,
+      ids.bob,
+    ]),
     /permission denied/,
   );
-
-  const s = await one(`select * from poll_option_summary where poll_option_id = $1`, [opts[0].id]);
-  assert.equal(s.yes_dogs, 2);
-  assert.equal(s.maybe_dogs, 1);
-
-  await assert.rejects(db.query(`select finalize_poll($1, $2)`, [poll.id, opts[0].id]), /Keine Berechtigung/);
-
-  await asUser(ids.trainer);
-  const { finalize_poll: apptId } = await one(`select finalize_poll($1, $2)`, [poll.id, opts[0].id]);
-  const parts = await rows(
-    `select dog_id, status from appointment_participants where appointment_id = $1 order by status, dog_id`,
-    [apptId],
+  // Bob sieht nur die eigene Auswahl, aber die Zusammenfassung
+  assert.equal((await rows(`select * from poll_option_dogs`)).length, 1);
+  const summary = Object.fromEntries(
+    (await rows(`select poll_option_id, dogs, people from poll_option_summary where poll_id = $1`, [poll.id])).map(
+      (r) => [r.poll_option_id, r],
+    ),
   );
-  const byDog = Object.fromEntries(parts.map((p) => [p.dog_id, p.status]));
+  assert.equal(summary[tue.id].dogs, 3);
+  assert.equal(summary[tue.id].people, 2);
+  assert.equal(summary[wed.id].dogs, 1);
+  assert.equal(summary[thu.id].dogs, 0);
+
+  // Alice ändert Mittwoch auf Balu, Dienstag bleibt unverändert
+  await choose(ids.alice, [{ option_id: wed.id, dog_ids: [ids.aliceDog2] }]);
+  const aliceWed = await rows(`select dog_id from poll_option_dogs where poll_option_id = $1`, [wed.id]);
+  assert.deepEqual(aliceWed.map((r) => r.dog_id), [ids.aliceDog2]);
+  assert.equal((await rows(`select * from poll_option_dogs where poll_option_id = $1`, [tue.id])).length, 2);
+
+  await assert.rejects(db.query(`select finalize_poll($1, $2)`, [poll.id, tue.id]), /Keine Berechtigung/);
+
+  // Trainerin legt Dienstag UND Mittwoch fest
+  await asUser(ids.trainer);
+  const tueAppt = (await one(`select finalize_poll($1, $2) as id`, [poll.id, tue.id])).id;
+  const wedAppt = (await one(`select finalize_poll($1, $2) as id`, [poll.id, wed.id])).id;
+  assert.notEqual(tueAppt, wedAppt);
+  await assert.rejects(db.query(`select finalize_poll($1, $2)`, [poll.id, tue.id]), /schon einen Termin/);
+
+  const tueParts = await rows(`select dog_id, status from appointment_participants where appointment_id = $1`, [tueAppt]);
+  const byDog = Object.fromEntries(tueParts.map((p) => [p.dog_id, p.status]));
   assert.equal(byDog[ids.aliceDog1], 'registered');
   assert.equal(byDog[ids.aliceDog2], 'registered');
-  assert.equal(byDog[ids.bobDog1], 'waitlist');
-  const finalPoll = await one(`select status, appointment_id from polls where id = $1`, [poll.id]);
-  assert.equal(finalPoll.status, 'finalized');
-  assert.equal(finalPoll.appointment_id, apptId);
+  assert.equal(byDog[ids.bobDog1], 'waitlist'); // max. 2 Hunde
+  const wedParts = await rows(`select dog_id, status from appointment_participants where appointment_id = $1`, [wedAppt]);
+  assert.deepEqual(wedParts.map((p) => [p.dog_id, p.status]), [[ids.aliceDog2, 'registered']]);
 
-  await asUser(ids.alice);
-  await assert.rejects(
-    db.query(`select submit_poll_response($1, $2, '[]')`, [poll.id, [ids.aliceDog1]]),
-    /geschlossen/,
-  );
+  // Umfrage bleibt offen; festgelegte Vorschläge lassen sich nicht mehr ändern
+  await choose(ids.alice, [
+    { option_id: tue.id, dog_ids: [] },
+    { option_id: thu.id, dog_ids: [ids.aliceDog1] },
+  ]);
+  assert.equal((await rows(`select * from poll_option_dogs where poll_option_id = $1`, [tue.id])).length, 2);
+  assert.equal((await rows(`select * from poll_option_dogs where poll_option_id = $1`, [thu.id])).length, 1);
 });
 
 test('Abstimmen nur für Vorschläge, die noch nicht begonnen haben', async () => {
   await asUser(ids.trainer);
-  // alte Abstimmungsfrist wird ignoriert
-  const poll = await one(
-    `insert into polls (school_id, title, deadline) values ($1, 'Heute', now() - interval '1 day') returning id`,
-    [ids.school],
-  );
+  const poll = await one(`insert into polls (school_id, title) values ($1, 'Heute') returning id`, [ids.school]);
   const [past, later] = await rows(
     `insert into poll_options (poll_id, starts_at) values ($1, now() - interval '1 hour'), ($1, now() + interval '2 hours')
      returning id`,
     [poll.id],
   );
   await asUser(ids.alice);
-  await db.query(`select submit_poll_response($1, $2, $3)`, [
+  await db.query(`select submit_poll_response($1, $2)`, [
     poll.id,
-    [ids.aliceDog1],
     JSON.stringify([
-      { option_id: past.id, answer: 'yes' },
-      { option_id: later.id, answer: 'yes' },
+      { option_id: past.id, dog_ids: [ids.aliceDog1] },
+      { option_id: later.id, dog_ids: [ids.aliceDog1] },
     ]),
   ]);
-  const votes = await rows(`select poll_option_id from poll_votes where user_id = $1 and poll_option_id = any ($2)`, [
-    ids.alice,
+  const chosen = await rows(`select poll_option_id from poll_option_dogs where poll_option_id = any ($1)`, [
     [past.id, later.id],
   ]);
-  assert.deepEqual(votes.map((v) => v.poll_option_id), [later.id]);
+  assert.deepEqual(chosen.map((v) => v.poll_option_id), [later.id]);
 
-  // nur noch vergangene Vorschläge → geschlossen
   await asUser(ids.trainer);
   const old = await one(`insert into polls (school_id, title) values ($1, 'Vorbei') returning id`, [ids.school]);
   await db.query(`insert into poll_options (poll_id, starts_at) values ($1, now() - interval '1 day')`, [old.id]);
   await asUser(ids.alice);
-  await assert.rejects(
-    db.query(`select submit_poll_response($1, $2, '[]')`, [old.id, [ids.aliceDog1]]),
-    /Vergangenheit/,
-  );
+  await assert.rejects(db.query(`select submit_poll_response($1, '[]')`, [old.id]), /nicht mehr abgestimmt/);
 });
 
 test('Trails: Länge, Sichtbarkeit über Zuweisung, öffentlicher Link', async () => {

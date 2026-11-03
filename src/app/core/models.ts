@@ -76,7 +76,6 @@ export interface Participant {
 }
 
 export type PollStatus = 'open' | 'closed' | 'finalized';
-export type VoteAnswer = 'yes' | 'maybe' | 'no';
 
 export interface Poll {
   id: string;
@@ -85,10 +84,7 @@ export interface Poll {
   description: string | null;
   meeting_point: GeoPoint | null;
   meeting_address: string | null;
-  deadline: string | null;
   status: PollStatus;
-  final_option_id: string | null;
-  appointment_id: string | null;
   created_at: string;
   poll_options?: PollOption[];
 }
@@ -97,32 +93,26 @@ export interface PollOption {
   id: string;
   poll_id: string;
   starts_at: string;
-  ends_at: string | null;
   max_dogs: number | null;
+  /** Gesetzt, sobald der Vorschlag als Termin festgelegt wurde. */
+  appointment_id: string | null;
 }
 
 export interface PollOptionSummary {
   poll_option_id: string;
   poll_id: string;
-  yes_people: number;
-  maybe_people: number;
-  no_people: number;
-  yes_dogs: number;
-  maybe_dogs: number;
+  dogs: number;
+  people: number;
 }
 
-export interface PollVote {
+/** Ein Hund, mit dem jemand zu einem Vorschlag kommen möchte (Trainer-Ansicht). */
+export interface PollChoice {
   poll_option_id: string;
   user_id: string;
-  answer: VoteAnswer;
-  profiles?: Pick<Profile, 'id' | 'full_name'>;
-}
-
-export interface PollDog {
-  poll_id: string;
-  user_id: string;
   dog_id: string;
+  created_at: string;
   dogs?: Pick<Dog, 'id' | 'name'>;
+  profiles?: Pick<Profile, 'id' | 'full_name'>;
 }
 
 export type WaypointType = 'start' | 'via' | 'hide' | 'article' | 'turn' | 'note';

@@ -47,7 +47,7 @@ export const routes: Routes = [
   {
     path: 'app',
     canActivate: [memberGuard],
-    loadComponent: () => import('./features/shell/tabs.page').then((m) => m.TabsPage),
+    loadComponent: () => import('./features/shell/shell.page').then((m) => m.ShellPage),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'termine' },
       {

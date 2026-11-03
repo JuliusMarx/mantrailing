@@ -300,7 +300,7 @@ export const OPS: Record<string, Op> = {
         tx,
         `select pl.*,
            coalesce((select json_agg(o order by o.starts_at) from poll_options o where o.poll_id = pl.id), '[]') as poll_options,
-           exists (select 1 from poll_dogs pd where pd.poll_id = pl.id and pd.user_id = auth.uid()) as answered
+           exists (select 1 from poll_responses r where r.poll_id = pl.id and r.user_id = auth.uid()) as answered
          from polls pl where pl.school_id = $1 and pl.status <> 'finalized'
          order by pl.created_at desc`,
         [uuid(p, 'schoolId')],
@@ -313,42 +313,38 @@ export const OPS: Record<string, Op> = {
       if (!poll) return null;
       const options = await all(tx, `select * from poll_options where poll_id = $1 order by starts_at`, [id]);
       const summary = await all(tx, `select * from poll_option_summary where poll_id = $1`, [id]);
-      const dogs = await all(tx, `select dog_id from poll_dogs where poll_id = $1 and user_id = auth.uid()`, [id]);
-      const votes = await all(
+      const mine = await all(
         tx,
-        `select v.poll_option_id, v.answer from poll_votes v join poll_options o on o.id = v.poll_option_id
-         where o.poll_id = $1 and v.user_id = auth.uid()`,
+        `select d.poll_option_id, d.dog_id from poll_option_dogs d
+         join poll_options o on o.id = d.poll_option_id
+         where o.poll_id = $1 and d.user_id = auth.uid()`,
         [id],
       );
-      return {
-        poll,
-        options,
-        summary,
-        myDogIds: dogs.map((d) => d['dog_id']),
-        myVotes: Object.fromEntries(votes.map((v) => [v['poll_option_id'], v['answer']])),
-      };
+      const answered = await first(tx, `select 1 from poll_responses where poll_id = $1 and user_id = auth.uid()`, [id]);
+      const myChoices: Record<string, string[]> = {};
+      for (const row of mine) {
+        const option = row['poll_option_id'] as string;
+        (myChoices[option] ??= []).push(row['dog_id'] as string);
+      }
+      return { poll, options, summary, myChoices, answered: !!answered };
     },
   },
+  /** Wer kommt an welchem Vorschlag mit welchen Hunden (nur Trainer). */
   'polls.responses': {
-    async run(tx, p) {
-      const id = uuid(p, 'id');
-      const votes = await all(
+    run: (tx, p) =>
+      all(
         tx,
-        `select v.poll_option_id, v.user_id, v.answer,
+        `select d.poll_option_id, d.user_id, d.dog_id, d.created_at,
+           json_build_object('id', dg.id, 'name', dg.name) as dogs,
            json_build_object('id', pr.id, 'full_name', pr.full_name) as profiles
-         from poll_votes v join poll_options o on o.id = v.poll_option_id
-         left join profiles pr on pr.id = v.user_id
-         where o.poll_id = $1`,
-        [id],
-      );
-      const dogs = await all(
-        tx,
-        `select pd.poll_id, pd.user_id, pd.dog_id, json_build_object('id', d.id, 'name', d.name) as dogs
-         from poll_dogs pd join dogs d on d.id = pd.dog_id where pd.poll_id = $1`,
-        [id],
-      );
-      return { votes, dogs };
-    },
+         from poll_option_dogs d
+         join poll_options o on o.id = d.poll_option_id
+         join dogs dg on dg.id = d.dog_id
+         left join profiles pr on pr.id = d.user_id
+         where o.poll_id = $1
+         order by d.created_at`,
+        [uuid(p, 'id')],
+      ),
   },
   'polls.create': {
     async run(tx, p) {
@@ -369,12 +365,11 @@ export const OPS: Record<string, Op> = {
     run: (tx, p) => all(tx, `delete from polls where id = $1`, [uuid(p, 'id')]),
   },
   'polls.submit': {
-    run: (tx, p) =>
-      all(tx, `select submit_poll_response($1, $2, $3)`, [
-        uuid(p, 'id'),
-        uuids(p, 'dogIds'),
-        JSON.stringify(p['votes'] ?? []),
-      ]),
+    run(tx, p) {
+      const choices = p['choices'];
+      if (!Array.isArray(choices)) throw new HttpError(400, 'choices fehlt');
+      return all(tx, `select submit_poll_response($1, $2)`, [uuid(p, 'id'), JSON.stringify(choices)]);
+    },
   },
   'polls.finalize': {
     run: (tx, p) => scalar(tx, `select finalize_poll($1, $2)`, [uuid(p, 'id'), uuid(p, 'optionId')]),

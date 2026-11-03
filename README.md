@@ -56,7 +56,7 @@ server/                    Lokale Entwicklung (PGlite), Testdaten, DB-/API-Tests
 - `schools` und `memberships` (Rolle pro Schule), `join_token` an der Schule (Beitrittslink, erneuerbar und abschaltbar)
 - `dogs` gehören einem Profil
 - `appointments` mit `max_dogs` (die Kapazität zählt Hunde). In `appointment_participants` steht pro Hund `registered`, `waitlist` oder `cancelled`. Wird ein Platz frei, rückt automatisch der nächste Hund von der Warteliste nach.
-- `polls` mit `poll_options`, `poll_votes` (Ja/Vielleicht/Nein pro Option) und `poll_dogs` (mit welchen Hunden jemand kommt). `finalize_poll()` macht aus einer Option einen Termin.
+- `polls` mit `poll_options` und `poll_option_dogs` (mit welchen Hunden jemand an welchem Vorschlag kommt). `finalize_poll()` macht aus einem Vorschlag einen Termin – auch mehrere pro Umfrage.
 - `trails`: Die Route ist eine GeoJSON-LineString. Dazu kommen `waypoints` und `segments`, damit der Editor die Route später wieder bearbeiten kann. Die Länge berechnet ein Trigger. `trail_assignments` regelt, welche Kund:innen den Trail sehen. `share_token` dient als öffentlicher Link.
 
 ## Ausbaustufen

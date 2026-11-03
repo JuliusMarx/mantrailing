@@ -2,7 +2,6 @@ import { Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
   IonAvatar,
-  IonBackButton,
   IonButtons,
   IonContent,
   IonFab,
@@ -15,6 +14,7 @@ import {
   IonTitle,
   IonToolbar,
   ViewWillEnter,
+  IonMenuButton,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { add, pawOutline } from 'ionicons/icons';
@@ -37,12 +37,12 @@ export function dogAge(birthDate: string | null): string {
 @Component({
   selector: 'app-dogs',
   imports: [
+    IonMenuButton,
     RouterLink,
     IonHeader,
     IonToolbar,
     IonTitle,
     IonButtons,
-    IonBackButton,
     IonContent,
     IonList,
     IonItem,
@@ -55,9 +55,7 @@ export function dogAge(birthDate: string | null): string {
   template: `
     <ion-header>
       <ion-toolbar>
-        @if (auth.isTrainer()) {
-          <ion-buttons slot="start"><ion-back-button defaultHref="/app/konto" /></ion-buttons>
-        }
+        <ion-buttons slot="start"><ion-menu-button /></ion-buttons>
         <ion-title>Meine Hunde</ion-title>
       </ion-toolbar>
     </ion-header>

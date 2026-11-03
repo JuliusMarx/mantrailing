@@ -1,20 +1,18 @@
 import { inject, Injectable } from '@angular/core';
 import { ApiService } from '../api.service';
 import { AuthService } from '../auth.service';
-import { Poll, PollDog, PollOption, PollOptionSummary, PollVote, VoteAnswer } from '../models';
+import { Poll, PollChoice, PollOption, PollOptionSummary } from '../models';
 
-export type PollInput = Pick<
-  Poll,
-  'title' | 'description' | 'meeting_point' | 'meeting_address' | 'deadline'
->;
-export type PollOptionInput = Pick<PollOption, 'starts_at' | 'ends_at' | 'max_dogs'>;
+export type PollInput = Pick<Poll, 'title' | 'description'>;
+export type PollOptionInput = Pick<PollOption, 'starts_at' | 'max_dogs'>;
 
 export interface PollDetail {
   poll: Poll;
   options: PollOption[];
   summary: PollOptionSummary[];
-  myDogIds: string[];
-  myVotes: Record<string, VoteAnswer>;
+  /** Meine Hunde je Vorschlag (option_id → dog_ids). */
+  myChoices: Record<string, string[]>;
+  answered: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -33,9 +31,9 @@ export class PollsService {
     return this.api.op<PollDetail | null>('polls.get', { id });
   }
 
-  /** Alle Antworten mit Namen und Hunden (nur Trainer). */
+  /** Wer kommt an welchem Vorschlag mit welchen Hunden (nur Trainer). */
   responses(pollId: string) {
-    return this.api.op<{ votes: PollVote[]; dogs: PollDog[] }>('polls.responses', { id: pollId });
+    return this.api.op<PollChoice[]>('polls.responses', { id: pollId });
   }
 
   create(input: PollInput, options: PollOptionInput[]) {
@@ -50,11 +48,11 @@ export class PollsService {
     await this.api.op('polls.remove', { id });
   }
 
-  async submit(pollId: string, dogIds: string[], votes: Record<string, VoteAnswer>) {
+  /** choices: option_id → Hunde, mit denen ich an diesem Termin komme (leer = komme nicht). */
+  async submit(pollId: string, choices: Record<string, string[]>) {
     await this.api.op('polls.submit', {
       id: pollId,
-      dogIds,
-      votes: Object.entries(votes).map(([option_id, answer]) => ({ option_id, answer })),
+      choices: Object.entries(choices).map(([option_id, dog_ids]) => ({ option_id, dog_ids })),
     });
   }
 

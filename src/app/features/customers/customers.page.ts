@@ -19,6 +19,7 @@ import {
   IonTitle,
   IonToolbar,
   ViewWillEnter,
+  IonMenuButton,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -38,6 +39,7 @@ import { dogAge } from '../dogs/dogs.page';
 @Component({
   selector: 'app-customers',
   imports: [
+    IonMenuButton,
     IonHeader,
     IonToolbar,
     IonTitle,
@@ -58,6 +60,7 @@ import { dogAge } from '../dogs/dogs.page';
   template: `
     <ion-header>
       <ion-toolbar>
+        <ion-buttons slot="start"><ion-menu-button /></ion-buttons>
         <ion-title>Kund:innen ({{ members().length }})</ion-title>
         <ion-buttons slot="end">
           <ion-button (click)="openJoinLink()" aria-label="Beitrittslink">

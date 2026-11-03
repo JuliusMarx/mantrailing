@@ -18,6 +18,8 @@ import {
   IonTitle,
   IonToolbar,
   ViewWillEnter,
+  IonMenuButton,
+  IonButtons,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { add, linkOutline, mapOutline } from 'ionicons/icons';
@@ -30,6 +32,8 @@ import { UiService } from '../../core/ui.service';
 @Component({
   selector: 'app-trails',
   imports: [
+    IonMenuButton,
+    IonButtons,
     DatePipe,
     RouterLink,
     IonHeader,
@@ -51,6 +55,7 @@ import { UiService } from '../../core/ui.service';
   template: `
     <ion-header>
       <ion-toolbar>
+        <ion-buttons slot="start"><ion-menu-button /></ion-buttons>
         <ion-title>{{ auth.isTrainer() ? 'Trails' : 'Meine Trails' }}</ion-title>
       </ion-toolbar>
     </ion-header>

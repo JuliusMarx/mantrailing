@@ -88,29 +88,37 @@ test('Anmeldung mit mehreren Hunden, Warteliste nach Hunden', async () => {
   assert.ok(all.every((p) => p.profiles.full_name && p.dogs.name));
 });
 
-test('Umfrage: abstimmen mit Hunden und festlegen', async () => {
+test('Umfrage: Hunde pro Termin wählen und mehrere Termine festlegen', async () => {
   const [poll] = await api.kunde.op('polls.list', { schoolId: api.schoolId });
   assert.equal(poll.answered, false);
   assert.equal(poll.poll_options.length, 3);
+  const [o1, o2] = poll.poll_options;
   const dogs = await api.kunde.op('dogs.mine');
   await api.kunde.op('polls.submit', {
     id: poll.id,
-    dogIds: dogs.map((d) => d.id),
-    votes: poll.poll_options.map((o, i) => ({ option_id: o.id, answer: i === 0 ? 'yes' : 'no' })),
+    choices: [
+      { option_id: o1.id, dog_ids: dogs.map((x) => x.id) },
+      { option_id: o2.id, dog_ids: [dogs[0].id] },
+    ],
   });
   const detail = await api.kunde.op('polls.get', { id: poll.id });
-  assert.equal(detail.myDogIds.length, 2);
-  assert.equal(detail.myVotes[poll.poll_options[0].id], 'yes');
-  assert.equal(detail.summary.find((s) => s.poll_option_id === poll.poll_options[0].id).yes_dogs, 2);
+  assert.equal(detail.answered, true);
+  assert.equal(detail.myChoices[o1.id].length, 2);
+  assert.deepEqual(detail.myChoices[o2.id], [dogs[0].id]);
+  assert.equal(detail.summary.find((x) => x.poll_option_id === o1.id).dogs, 2);
 
   const responses = await api.trainer.op('polls.responses', { id: poll.id });
-  assert.equal(responses.dogs.length, 2);
-  await assert.rejects(api.kunde.op('polls.finalize', { id: poll.id, optionId: poll.poll_options[0].id }), /Berechtigung/);
+  assert.equal(responses.length, 3);
+  assert.ok(responses.every((r) => r.profiles.full_name === 'Karla Kundin' && r.dogs.name));
+  await assert.rejects(api.kunde.op('polls.finalize', { id: poll.id, optionId: o1.id }), /Berechtigung/);
 
-  const apptId = await api.trainer.op('polls.finalize', { id: poll.id, optionId: poll.poll_options[0].id });
-  const appt = await api.kunde.op('appointments.get', { id: apptId });
-  assert.equal(appt.mine.length, 2);
-  assert.ok(appt.mine.every((p) => p.status === 'registered'));
+  const a1 = await api.trainer.op('polls.finalize', { id: poll.id, optionId: o1.id });
+  const a2 = await api.trainer.op('polls.finalize', { id: poll.id, optionId: o2.id });
+  assert.equal((await api.kunde.op('appointments.get', { id: a1 })).mine.length, 2);
+  const second = await api.kunde.op('appointments.get', { id: a2 });
+  assert.deepEqual(second.mine.map((x) => x.dogs.name), [dogs[0].name]);
+  const after = await api.kunde.op('polls.get', { id: poll.id });
+  assert.equal(after.options.find((o) => o.id === o1.id).appointment_id, a1);
 });
 
 test('Trails: speichern, zuweisen, teilen, öffentlicher Link', async () => {

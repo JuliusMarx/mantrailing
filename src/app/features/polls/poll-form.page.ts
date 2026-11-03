@@ -160,16 +160,13 @@ export class PollFormPage {
     }
     const options = this.options().map((o) => {
       const max = o.maxDogs === null || o.maxDogs === '' ? null : Math.round(Number(o.maxDogs));
-      return { starts_at: fromLocalInput(o.start)!, ends_at: null, max_dogs: max && max > 0 ? max : null };
+      return { starts_at: fromLocalInput(o.start)!, max_dogs: max && max > 0 ? max : null };
     });
     const poll = await this.ui.run(() =>
       this.polls.create(
         {
           title: this.title.trim(),
           description: this.description.trim() || null,
-          deadline: null,
-          meeting_address: null,
-          meeting_point: null,
         },
         options,
       ),

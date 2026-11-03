@@ -1,6 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Router } from '@angular/router';
 import {
   AlertController,
   IonButton,
@@ -18,6 +18,8 @@ import {
   IonTitle,
   IonToolbar,
   ViewWillEnter,
+  IonMenuButton,
+  IonButtons,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { businessOutline, keyOutline, logOutOutline, pawOutline, trashOutline } from 'ionicons/icons';
@@ -28,8 +30,9 @@ import { UiService } from '../../core/ui.service';
 @Component({
   selector: 'app-account',
   imports: [
+    IonMenuButton,
+    IonButtons,
     FormsModule,
-    RouterLink,
     IonHeader,
     IonToolbar,
     IonTitle,
@@ -47,7 +50,10 @@ import { UiService } from '../../core/ui.service';
   ],
   template: `
     <ion-header>
-      <ion-toolbar><ion-title>Konto</ion-title></ion-toolbar>
+      <ion-toolbar>
+        <ion-buttons slot="start"><ion-menu-button /></ion-buttons>
+        <ion-title>Konto</ion-title>
+      </ion-toolbar>
     </ion-header>
     <ion-content>
       <ion-list>
@@ -66,15 +72,6 @@ import { UiService } from '../../core/ui.service';
         <ion-button expand="block" (click)="saveProfile()" [disabled]="!dirty()">Profil speichern</ion-button>
       </div>
 
-      @if (auth.isTrainer()) {
-        <ion-list>
-          <ion-list-header><ion-label>Meine Hunde</ion-label></ion-list-header>
-          <ion-item routerLink="/app/hunde" detail>
-            <ion-icon slot="start" name="paw-outline" />
-            <ion-label>Hunde verwalten</ion-label>
-          </ion-item>
-        </ion-list>
-      }
 
       <ion-list>
         <ion-list-header><ion-label>Hundeschule</ion-label></ion-list-header>

@@ -22,6 +22,8 @@ import {
   IonTitle,
   IonToolbar,
   ViewWillEnter,
+  IonMenuButton,
+  IonButtons,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { add, calendarOutline, checkmarkCircle, helpCircleOutline, timeOutline } from 'ionicons/icons';
@@ -37,6 +39,8 @@ type Tab = 'termine' | 'umfragen';
 @Component({
   selector: 'app-appointments',
   imports: [
+    IonMenuButton,
+    IonButtons,
     DatePipe,
     RouterLink,
     IonHeader,
