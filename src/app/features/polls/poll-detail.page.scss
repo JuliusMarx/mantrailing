@@ -119,3 +119,14 @@ ion-segment-button {
 .small {
   font-size: 13px;
 }
+
+.option.past {
+  opacity: 0.55;
+}
+
+.past-badge {
+  margin-left: 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
+}

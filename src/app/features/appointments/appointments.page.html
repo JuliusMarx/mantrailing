@@ -52,7 +52,7 @@
             <ion-label>
               <h2>{{ a.title }}</h2>
               <p>
-                {{ a.starts_at | date: 'HH:mm' }}{{ a.ends_at ? '–' + (a.ends_at | date: 'HH:mm') : '' }} Uhr
+                {{ a.starts_at | date: 'HH:mm' }} Uhr
                 @if (a.meeting_address) { · {{ a.meeting_address }} }
               </p>
               <p class="badges">
@@ -111,8 +111,6 @@
             <p class="badges">
               @if (pollClosed(p)) {
                 <ion-badge color="medium">Geschlossen</ion-badge>
-              } @else if (p.deadline) {
-                <ion-badge color="light"><ion-icon name="time-outline" /> bis {{ p.deadline | date: 'd. MMM, HH:mm' }}</ion-badge>
               }
               @if (p.answered) {
                 <ion-badge color="success"><ion-icon name="checkmark-circle" /> abgestimmt</ion-badge>

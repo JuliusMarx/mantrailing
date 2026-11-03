@@ -84,7 +84,8 @@ export class PollDetailPage implements ViewWillEnter {
 
   protected readonly closed = computed(() => {
     const p = this.detail()?.poll;
-    return !p || p.status !== 'open' || isPast(p.deadline);
+    const options = this.detail()?.options ?? [];
+    return !p || p.status !== 'open' || options.every((o) => isPast(o.starts_at));
   });
 
   protected readonly answered = computed(() => (this.detail()?.myDogIds.length ?? 0) > 0);
@@ -137,6 +138,11 @@ export class PollDetailPage implements ViewWillEnter {
     this.responses.set(result);
   }
 
+  /** Vorschläge, die schon begonnen haben, kann man nicht mehr wählen. */
+  isPast(option: PollOption) {
+    return isPast(option.starts_at);
+  }
+
   summary(optionId: string) {
     return this.detail()?.summary.find((s) => s.poll_option_id === optionId);
   }
@@ -155,9 +161,9 @@ export class PollDetailPage implements ViewWillEnter {
 
   async submit() {
     const options = this.detail()!.options;
-    // Nicht beantwortete Optionen gelten als "Nein"
+    // Nicht beantwortete Optionen gelten als "Nein"; vergangene werden nicht mehr geschickt
     const votes: Record<string, VoteAnswer> = {};
-    for (const o of options) votes[o.id] = this.votes()[o.id] ?? 'no';
+    for (const o of options) if (!isPast(o.starts_at)) votes[o.id] = this.votes()[o.id] ?? 'no';
     this.saving.set(true);
     const ok = await this.ui.run(async () => {
       await this.polls.submit(this.id(), [...this.selectedDogs()], votes);

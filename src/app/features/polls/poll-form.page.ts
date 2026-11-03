@@ -19,14 +19,11 @@ import {
 import { addIcons } from 'ionicons';
 import { add, trashOutline } from 'ionicons/icons';
 import { PollsService } from '../../core/data/polls.service';
-import { GeoPoint } from '../../core/models';
 import { UiService } from '../../core/ui.service';
 import { fromLocalInput, toLocalInput } from '../../shared/dates';
-import { PointPickerComponent } from '../../shared/point-picker.component';
 
 interface OptionDraft {
   start: string;
-  endTime: string;
   maxDogs: number | string | null;
 }
 
@@ -34,7 +31,6 @@ interface OptionDraft {
   selector: 'app-poll-form',
   imports: [
     FormsModule,
-    PointPickerComponent,
     IonHeader,
     IonToolbar,
     IonButtons,
@@ -62,12 +58,12 @@ interface OptionDraft {
     <ion-content class="ion-padding">
       <p class="muted">
         Schlage mehrere Termine vor. Deine Kund:innen wählen ihre Hunde aus und stimmen pro Termin
-        ab. Danach legst du den besten Termin fest.
+        ab – bis der jeweilige Termin beginnt. Danach legst du den besten Termin fest; den
+        Treffpunkt trägst du später am Termin ein.
       </p>
       <ion-list lines="none" class="form">
         <ion-input fill="outline" label="Titel" labelPlacement="floating" placeholder="z. B. Waldtrail im Stadtwald" [(ngModel)]="title" />
         <ion-textarea fill="outline" label="Beschreibung" labelPlacement="floating" [autoGrow]="true" [(ngModel)]="description" />
-        <ion-input fill="outline" label="Abstimmen bis" labelPlacement="stacked" type="datetime-local" [(ngModel)]="deadline" />
       </ion-list>
 
       <ion-list-header class="ion-no-padding"><ion-label>Terminvorschläge</ion-label></ion-list-header>
@@ -81,9 +77,8 @@ interface OptionDraft {
               </ion-button>
             }
           </div>
-          <ion-input fill="outline" label="Beginn" labelPlacement="stacked" type="datetime-local" [(ngModel)]="o.start" />
           <div class="two">
-            <ion-input fill="outline" label="Ende (Uhrzeit)" labelPlacement="stacked" type="time" [(ngModel)]="o.endTime" />
+            <ion-input fill="outline" label="Beginn" labelPlacement="stacked" type="datetime-local" [(ngModel)]="o.start" />
             <ion-input fill="outline" label="Max. Hunde" labelPlacement="stacked" type="number" inputmode="numeric" min="1" placeholder="unbegrenzt" [(ngModel)]="o.maxDogs" />
           </div>
         </div>
@@ -91,12 +86,6 @@ interface OptionDraft {
       <ion-button expand="block" fill="outline" (click)="addOption()">
         <ion-icon slot="start" name="add" />Weiteren Vorschlag
       </ion-button>
-
-      <ion-list-header class="ion-no-padding"><ion-label>Treffpunkt</ion-label></ion-list-header>
-      <ion-list lines="none" class="form">
-        <ion-input fill="outline" label="Adresse / Beschreibung" labelPlacement="floating" [(ngModel)]="address" />
-      </ion-list>
-      <app-point-picker [(point)]="point" [address]="address" />
     </ion-content>
   `,
   styles: `
@@ -124,7 +113,7 @@ interface OptionDraft {
     }
     .two {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 3fr 2fr;
       gap: 8px;
     }
   `,
@@ -136,9 +125,6 @@ export class PollFormPage {
 
   protected title = '';
   protected description = '';
-  protected deadline = '';
-  protected address = '';
-  protected readonly point = signal<GeoPoint | null>(null);
   protected readonly options = signal<OptionDraft[]>([]);
 
   constructor() {
@@ -146,11 +132,7 @@ export class PollFormPage {
     const first = new Date();
     first.setDate(first.getDate() + 7);
     first.setHours(10, 0, 0, 0);
-    this.options.set([{ start: toLocalInput(first.toISOString()), endTime: '12:00', maxDogs: 6 }]);
-    const deadline = new Date();
-    deadline.setDate(deadline.getDate() + 3);
-    deadline.setHours(20, 0, 0, 0);
-    this.deadline = toLocalInput(deadline.toISOString());
+    this.options.set([{ start: toLocalInput(first.toISOString()), maxDogs: 6 }]);
   }
 
   addOption() {
@@ -159,7 +141,7 @@ export class PollFormPage {
     next.setDate(next.getDate() + 1);
     this.options.update((o) => [
       ...o,
-      { start: toLocalInput(next.toISOString()), endTime: last?.endTime ?? '', maxDogs: last?.maxDogs ?? null },
+      { start: toLocalInput(next.toISOString()), maxDogs: last?.maxDogs ?? null },
     ]);
   }
 
@@ -172,26 +154,22 @@ export class PollFormPage {
   }
 
   async save() {
+    if (this.options().some((o) => new Date(o.start).getTime() <= Date.now())) {
+      await this.ui.toast('Ein Terminvorschlag liegt in der Vergangenheit.', 'warning');
+      return;
+    }
     const options = this.options().map((o) => {
-      const startsAt = fromLocalInput(o.start)!;
-      let endsAt: string | null = null;
-      if (o.endTime) {
-        const end = new Date(startsAt);
-        const [h, m] = o.endTime.split(':').map(Number);
-        end.setHours(h, m, 0, 0);
-        if (end.getTime() > new Date(startsAt).getTime()) endsAt = end.toISOString();
-      }
       const max = o.maxDogs === null || o.maxDogs === '' ? null : Math.round(Number(o.maxDogs));
-      return { starts_at: startsAt, ends_at: endsAt, max_dogs: max && max > 0 ? max : null };
+      return { starts_at: fromLocalInput(o.start)!, ends_at: null, max_dogs: max && max > 0 ? max : null };
     });
     const poll = await this.ui.run(() =>
       this.polls.create(
         {
           title: this.title.trim(),
           description: this.description.trim() || null,
-          deadline: fromLocalInput(this.deadline),
-          meeting_address: this.address.trim() || null,
-          meeting_point: this.point(),
+          deadline: null,
+          meeting_address: null,
+          meeting_point: null,
         },
         options,
       ),

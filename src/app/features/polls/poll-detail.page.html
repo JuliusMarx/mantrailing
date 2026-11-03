@@ -23,9 +23,6 @@
     @if (d.poll.meeting_address) {
       <p class="meta"><ion-icon name="location-outline" />{{ d.poll.meeting_address }}</p>
     }
-    @if (d.poll.deadline) {
-      <p class="meta"><ion-icon name="time-outline" />Abstimmen bis {{ d.poll.deadline | date: 'EEE, d. MMM, HH:mm' }} Uhr</p>
-    }
 
     @if (d.poll.status === 'finalized') {
       <div class="banner success">
@@ -57,11 +54,12 @@
     <!-- Schritt 2: Optionen -->
     <h3>Wann passt es dir?</h3>
     @for (o of d.options; track o.id) {
-      <div class="option" [class.final]="d.poll.final_option_id === o.id">
+      <div class="option" [class.final]="d.poll.final_option_id === o.id" [class.past]="isPast(o)">
         <div class="option-head">
           <div>
             <strong>{{ o.starts_at | date: 'EEEE, d. MMMM' }}</strong><br />
-            {{ o.starts_at | date: 'HH:mm' }}{{ o.ends_at ? ' – ' + (o.ends_at | date: 'HH:mm') : '' }} Uhr
+            {{ o.starts_at | date: 'HH:mm' }} Uhr
+            @if (isPast(o)) { <span class="past-badge">vorbei</span> }
           </div>
           @if (summary(o.id); as s) {
             <div class="counts">
@@ -74,7 +72,7 @@
         </div>
 
         @if (myDogs().length && d.poll.status !== 'finalized') {
-          <ion-segment [value]="votes()[o.id]" (ionChange)="setVote(o.id, $any($event.detail.value))" [disabled]="closed()">
+          <ion-segment [value]="votes()[o.id]" (ionChange)="setVote(o.id, $any($event.detail.value))" [disabled]="closed() || isPast(o)">
             <ion-segment-button value="yes"><ion-label>Ja</ion-label></ion-segment-button>
             <ion-segment-button value="maybe"><ion-label>Vielleicht</ion-label></ion-segment-button>
             <ion-segment-button value="no"><ion-label>Nein</ion-label></ion-segment-button>

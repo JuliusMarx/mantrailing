@@ -114,7 +114,7 @@ export class AppointmentDetailPage implements ViewWillEnter {
 
   protected readonly registrationOpen = computed(() => {
     const a = this.appointment();
-    return !!a && a.status === 'planned' && !isPast(a.registration_deadline ?? a.starts_at);
+    return !!a && a.status === 'planned' && !isPast(a.starts_at);
   });
 
   constructor() {

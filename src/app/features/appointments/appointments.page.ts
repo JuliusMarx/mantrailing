@@ -76,7 +76,7 @@ export class AppointmentsPage implements ViewWillEnter {
   protected readonly loading = signal(true);
 
   protected readonly openPolls = computed(() =>
-    this.polls().filter((p) => p.status === 'open' && !isPast(p.deadline)),
+    this.polls().filter((p) => !this.pollClosed(p)),
   );
   protected readonly unansweredCount = computed(
     () => this.openPolls().filter((p) => !p.answered).length,
@@ -148,7 +148,7 @@ export class AppointmentsPage implements ViewWillEnter {
   }
 
   protected pollClosed(p: Poll) {
-    return p.status !== 'open' || isPast(p.deadline);
+    return p.status !== 'open' || (p.poll_options ?? []).every((o) => isPast(o.starts_at));
   }
 
   protected myStatus(a: AppointmentWithSummary): 'registered' | 'waitlist' | null {

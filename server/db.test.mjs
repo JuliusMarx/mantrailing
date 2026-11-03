@@ -177,23 +177,31 @@ test('Kapazität zählt Hunde, Warteliste und Nachrücken', async () => {
   assert.equal(kira.status, 'registered');
 });
 
-test('Anmeldung nach Anmeldeschluss wird abgelehnt', async () => {
+test('Anmeldung geht bis zum Beginn, auch am selben Tag – danach nicht mehr', async () => {
   await asUser(ids.trainer);
-  const appt = await one(
-    `insert into appointments (school_id, title, starts_at, registration_deadline) values ($1, 'Zu spät', now() + interval '1 day', now() - interval '1 hour') returning id`,
+  const soon = await one(
+    `insert into appointments (school_id, title, starts_at, registration_deadline)
+     values ($1, 'Gleich', now() + interval '30 minutes', now() - interval '1 day') returning id`,
+    [ids.school],
+  );
+  const started = await one(
+    `insert into appointments (school_id, title, starts_at) values ($1, 'Läuft schon', now() - interval '5 minutes') returning id`,
     [ids.school],
   );
   await asUser(ids.alice);
+  // ein alter Anmeldeschluss spielt keine Rolle mehr
+  const r = await rows(`select * from register_for_appointment($1, $2)`, [soon.id, [ids.aliceDog1]]);
+  assert.equal(r[0].status, 'registered');
   await assert.rejects(
-    db.query(`select * from register_for_appointment($1, $2)`, [appt.id, [ids.aliceDog1]]),
-    /Anmeldeschluss/,
+    db.query(`select * from register_for_appointment($1, $2)`, [started.id, [ids.aliceDog1]]),
+    /schon begonnen/,
   );
 });
 
 test('Umfrage: abstimmen, Zusammenfassung, festlegen', async () => {
   await asUser(ids.trainer);
   const poll = await one(
-    `insert into polls (school_id, title, deadline) values ($1, 'Wald-Trail', now() + interval '2 days') returning id`,
+    `insert into polls (school_id, title) values ($1, 'Wald-Trail') returning id`,
     [ids.school],
   );
   const opts = await rows(
@@ -255,16 +263,41 @@ test('Umfrage: abstimmen, Zusammenfassung, festlegen', async () => {
   );
 });
 
-test('Abstimmen nach der Deadline wird abgelehnt', async () => {
+test('Abstimmen nur für Vorschläge, die noch nicht begonnen haben', async () => {
   await asUser(ids.trainer);
+  // alte Abstimmungsfrist wird ignoriert
   const poll = await one(
-    `insert into polls (school_id, title, deadline) values ($1, 'Vorbei', now() - interval '1 minute') returning id`,
+    `insert into polls (school_id, title, deadline) values ($1, 'Heute', now() - interval '1 day') returning id`,
     [ids.school],
   );
+  const [past, later] = await rows(
+    `insert into poll_options (poll_id, starts_at) values ($1, now() - interval '1 hour'), ($1, now() + interval '2 hours')
+     returning id`,
+    [poll.id],
+  );
+  await asUser(ids.alice);
+  await db.query(`select submit_poll_response($1, $2, $3)`, [
+    poll.id,
+    [ids.aliceDog1],
+    JSON.stringify([
+      { option_id: past.id, answer: 'yes' },
+      { option_id: later.id, answer: 'yes' },
+    ]),
+  ]);
+  const votes = await rows(`select poll_option_id from poll_votes where user_id = $1 and poll_option_id = any ($2)`, [
+    ids.alice,
+    [past.id, later.id],
+  ]);
+  assert.deepEqual(votes.map((v) => v.poll_option_id), [later.id]);
+
+  // nur noch vergangene Vorschläge → geschlossen
+  await asUser(ids.trainer);
+  const old = await one(`insert into polls (school_id, title) values ($1, 'Vorbei') returning id`, [ids.school]);
+  await db.query(`insert into poll_options (poll_id, starts_at) values ($1, now() - interval '1 day')`, [old.id]);
   await asUser(ids.alice);
   await assert.rejects(
-    db.query(`select submit_poll_response($1, $2, '[]')`, [poll.id, [ids.aliceDog1]]),
-    /geschlossen/,
+    db.query(`select submit_poll_response($1, $2, '[]')`, [old.id, [ids.aliceDog1]]),
+    /Vergangenheit/,
   );
 });
 

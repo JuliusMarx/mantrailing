@@ -30,7 +30,7 @@
       <p class="meta">
         <ion-icon name="time-outline" />
         {{ a.starts_at | date: 'EEEE, d. MMMM y' }}<br />
-        {{ a.starts_at | date: 'HH:mm' }}{{ a.ends_at ? ' – ' + (a.ends_at | date: 'HH:mm') : '' }} Uhr
+        {{ a.starts_at | date: 'HH:mm' }} Uhr
       </p>
       @if (a.meeting_address || a.meeting_point) {
         <p class="meta">
@@ -40,6 +40,16 @@
             <br /><a [href]="url" target="_blank" rel="noopener">Navigation starten</a>
           }
         </p>
+      } @else {
+        <p class="meta">
+          <ion-icon name="location-outline" />
+          <span class="muted">Treffpunkt wird noch bekannt gegeben.</span>
+        </p>
+        @if (auth.isTrainer()) {
+          <ion-button size="small" fill="outline" [routerLink]="['/app/termine', a.id, 'bearbeiten']">
+            <ion-icon slot="start" name="location-outline" />Treffpunkt eintragen
+          </ion-button>
+        }
       }
       <p class="meta">
         <ion-icon name="paw-outline" />
@@ -50,9 +60,6 @@
           {{ a.summary?.registered_dogs ?? 0 }} Hunde angemeldet
         }
       </p>
-      @if (a.registration_deadline) {
-        <p class="muted small">Anmeldeschluss: {{ a.registration_deadline | date: 'EEE, d. MMM, HH:mm' }} Uhr</p>
-      }
       @if (a.notes) {
         <p class="notes">{{ a.notes }}</p>
       }

@@ -72,9 +72,6 @@ export async function seedIfEmpty(handle) {
     input: {
       title: 'Stadttrail Innenstadt',
       starts_at: day(4, 9),
-      ends_at: day(4, 12),
-      meeting_point: { type: 'Point', coordinates: [8.6821, 50.1109] },
-      meeting_address: 'Römerberg, Frankfurt am Main',
       max_dogs: 3,
       notes: 'Bitte Geruchsartikel in einer Tüte mitbringen.',
     },
@@ -84,13 +81,11 @@ export async function seedIfEmpty(handle) {
     input: {
       title: 'Waldtrail im Stadtwald',
       description: 'Langer Trail mit 2 h Liegezeit.',
-      meeting_address: 'Parkplatz Oberschweinstiege',
-      deadline: day(5, 20),
     },
     options: [
-      { starts_at: day(9, 9), ends_at: day(9, 12), max_dogs: 5 },
-      { starts_at: day(9, 14), ends_at: day(9, 17), max_dogs: 5 },
-      { starts_at: day(10, 10), ends_at: day(10, 13), max_dogs: 5 },
+      { starts_at: day(9, 9), max_dogs: 5 },
+      { starts_at: day(9, 14), max_dogs: 5 },
+      { starts_at: day(10, 10), max_dogs: 5 },
     ],
   });
   console.log('Testdaten angelegt (Logins siehe server/seed.mjs).');

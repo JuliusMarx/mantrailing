@@ -15,7 +15,7 @@ import {
   IonTitle,
   IonToolbar,
 } from '@ionic/angular/standalone';
-import { AppointmentsService } from '../../core/data/appointments.service';
+import { AppointmentInput, AppointmentsService } from '../../core/data/appointments.service';
 import { GeoPoint } from '../../core/models';
 import { UiService } from '../../core/ui.service';
 import { fromLocalInput, toLocalInput } from '../../shared/dates';
@@ -54,20 +54,20 @@ import { PointPickerComponent } from '../../shared/point-picker.component';
         <ion-input fill="outline" label="Titel" labelPlacement="floating" placeholder="z. B. Stadttrail Innenstadt" [(ngModel)]="title" />
         <div class="two">
           <ion-input fill="outline" label="Beginn" labelPlacement="stacked" type="datetime-local" [(ngModel)]="start" />
-          <ion-input fill="outline" label="Ende" labelPlacement="stacked" type="datetime-local" [(ngModel)]="end" />
-        </div>
-        <div class="two">
           <ion-input fill="outline" label="Max. Hunde" labelPlacement="stacked" type="number" inputmode="numeric" min="1" placeholder="unbegrenzt" [(ngModel)]="maxDogs" />
-          <ion-input fill="outline" label="Anmeldeschluss" labelPlacement="stacked" type="datetime-local" [(ngModel)]="deadline" />
         </div>
         <ion-textarea fill="outline" label="Hinweise" labelPlacement="floating" [autoGrow]="true" placeholder="z. B. Geruchsartikel mitbringen" [(ngModel)]="notes" />
       </ion-list>
 
-      <ion-list-header class="ion-no-padding"><ion-label>Treffpunkt</ion-label></ion-list-header>
-      <ion-list lines="none" class="form">
-        <ion-input fill="outline" label="Adresse / Beschreibung" labelPlacement="floating" [(ngModel)]="address" />
-      </ion-list>
-      <app-point-picker [(point)]="point" [address]="address" />
+      @if (id()) {
+        <ion-list-header class="ion-no-padding"><ion-label>Treffpunkt</ion-label></ion-list-header>
+        <ion-list lines="none" class="form">
+          <ion-input fill="outline" label="Adresse / Beschreibung" labelPlacement="floating" [(ngModel)]="address" />
+        </ion-list>
+        <app-point-picker [(point)]="point" [address]="address" />
+      } @else {
+        <p class="muted small">Den Treffpunkt trägst du später am Termin ein.</p>
+      }
     </ion-content>
   `,
   styles: `
@@ -77,6 +77,9 @@ import { PointPickerComponent } from '../../shared/point-picker.component';
       gap: 12px;
       background: transparent;
       margin-bottom: 12px;
+    }
+    .small {
+      font-size: 13px;
     }
     .two {
       display: grid;
@@ -94,9 +97,7 @@ export class AppointmentFormPage implements OnInit {
 
   protected title = '';
   protected start = '';
-  protected end = '';
   protected maxDogs: number | string | null = 6;
-  protected deadline = '';
   protected notes = '';
   protected address = '';
   protected readonly point = signal<GeoPoint | null>(null);
@@ -108,17 +109,13 @@ export class AppointmentFormPage implements OnInit {
       d.setDate(d.getDate() + 7);
       d.setHours(10, 0, 0, 0);
       this.start = toLocalInput(d.toISOString());
-      d.setHours(12);
-      this.end = toLocalInput(d.toISOString());
       return;
     }
     const a = await this.ui.run(() => this.service.get(id));
     if (!a) return;
     this.title = a.title;
     this.start = toLocalInput(a.starts_at);
-    this.end = toLocalInput(a.ends_at);
     this.maxDogs = a.max_dogs;
-    this.deadline = toLocalInput(a.registration_deadline);
     this.notes = a.notes ?? '';
     this.address = a.meeting_address ?? '';
     this.point.set(a.meeting_point);
@@ -130,27 +127,21 @@ export class AppointmentFormPage implements OnInit {
 
   async save() {
     const startsAt = fromLocalInput(this.start)!;
-    const endsAt = fromLocalInput(this.end);
-    if (endsAt && endsAt < startsAt) {
-      await this.ui.toast('Das Ende liegt vor dem Beginn.', 'warning');
-      return;
-    }
     const max = this.maxDogs === null || this.maxDogs === '' ? null : Number(this.maxDogs);
-    const saved = await this.ui.run(() =>
-      this.service.save(
-        {
-          title: this.title.trim(),
-          starts_at: startsAt,
-          ends_at: endsAt,
-          max_dogs: max && max > 0 ? Math.round(max) : null,
-          registration_deadline: fromLocalInput(this.deadline),
-          notes: this.notes.trim() || null,
-          meeting_address: this.address.trim() || null,
-          meeting_point: this.point(),
-        },
-        this.id(),
-      ),
-    );
+    const input: Partial<AppointmentInput> = {
+      title: this.title.trim(),
+      starts_at: startsAt,
+      ends_at: null,
+      max_dogs: max && max > 0 ? Math.round(max) : null,
+      registration_deadline: null,
+      notes: this.notes.trim() || null,
+    };
+    // Treffpunkt nur beim Bearbeiten (wird nachträglich eingetragen)
+    if (this.id()) {
+      input.meeting_address = this.address.trim() || null;
+      input.meeting_point = this.point();
+    }
+    const saved = await this.ui.run(() => this.service.save(input, this.id()));
     if (saved) await this.router.navigate(['/app/termine', saved.id], { replaceUrl: true });
   }
 }
