@@ -1,17 +1,15 @@
 import { inject, Injectable } from '@angular/core';
 import { ApiService } from '../api.service';
 import { AuthService } from '../auth.service';
-import { Dog, Invitation, Membership, Role } from '../models';
+import { Dog, Membership, Role } from '../models';
 
 export interface Member extends Membership {
   dogs: Dog[];
 }
 
-export interface InvitationInfo {
+export interface JoinInfo {
+  school_id: string;
   school_name: string;
-  email: string;
-  role: Role;
-  valid: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -43,24 +41,21 @@ export class SchoolService {
     return password;
   }
 
-  invitations() {
-    return this.api.op<Invitation[]>('invitations.list', { schoolId: this.auth.schoolId() });
+  /** Beitrittslink-Token der aktuellen Schule (null = abgeschaltet). */
+  joinToken() {
+    return this.api.op<string | null>('school.joinToken', { schoolId: this.auth.schoolId() });
   }
 
-  invite(email: string, role: Role) {
-    return this.api.op<Invitation>('invitations.create', {
+  /** Neuen Link erzeugen (alter wird ungültig) oder mit enabled=false abschalten. */
+  resetJoinToken(enabled: boolean) {
+    return this.api.op<string | null>('school.resetJoinToken', {
       schoolId: this.auth.schoolId(),
-      email,
-      role,
+      enabled,
     });
   }
 
-  async revokeInvitation(id: string) {
-    await this.api.op('invitations.revoke', { id });
-  }
-
-  invitationInfo(token: string) {
-    return this.api.op<InvitationInfo | null>('invitation.info', { token });
+  joinInfo(token: string) {
+    return this.api.op<JoinInfo | null>('school.joinInfo', { token });
   }
 
   async renameSchool(name: string) {
@@ -69,8 +64,8 @@ export class SchoolService {
   }
 }
 
-export function inviteUrl(token: string) {
-  return `${location.origin}/invite/${token}`;
+export function joinUrl(token: string) {
+  return `${location.origin}/beitreten/${token}`;
 }
 
 /** Teilen über das System-Teilen-Menü, sonst in die Zwischenablage. */

@@ -24,13 +24,13 @@ import { UiService } from '../../core/ui.service';
         <div class="card">
           <h3>Ich bin Kund:in</h3>
           <p class="muted">
-            Deine Trainerin oder dein Trainer schickt dir einen Einladungslink. Öffne ihn einfach
-            oder füge ihn hier ein.
+            Deine Trainerin oder dein Trainer schickt dir den Beitrittslink der Hundeschule. Öffne
+            ihn einfach oder füge ihn hier ein.
           </p>
           <ion-list lines="none">
-            <ion-input fill="outline" label="Einladungslink" labelPlacement="floating" name="link" [(ngModel)]="link" />
+            <ion-input fill="outline" label="Beitrittslink" labelPlacement="floating" name="link" [(ngModel)]="link" />
           </ion-list>
-          <ion-button expand="block" (click)="openInvite()" [disabled]="!link">Einladung öffnen</ion-button>
+          <ion-button expand="block" (click)="openJoinLink()" [disabled]="!link">Beitreten</ion-button>
         </div>
 
         <div class="card">
@@ -66,13 +66,13 @@ export class WelcomePage {
     addIcons({ pawOutline });
   }
 
-  openInvite() {
-    const token = this.link.trim().split('/invite/').pop()?.split(/[?#/]/)[0];
+  openJoinLink() {
+    const token = this.link.trim().split('/beitreten/').pop()?.split(/[?#/]/)[0];
     if (!token) {
-      this.error.set('Das sieht nicht nach einem Einladungslink aus.');
+      this.error.set('Das sieht nicht nach einem Beitrittslink aus.');
       return;
     }
-    this.router.navigate(['/invite', token]);
+    this.router.navigate(['/beitreten', token]);
   }
 
   async createSchool() {

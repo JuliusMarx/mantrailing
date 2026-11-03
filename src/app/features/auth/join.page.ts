@@ -4,11 +4,12 @@ import { IonButton, IonContent, IonIcon, IonSpinner } from '@ionic/angular/stand
 import { addIcons } from 'ionicons';
 import { pawOutline } from 'ionicons/icons';
 import { AuthService } from '../../core/auth.service';
-import { InvitationInfo, SchoolService } from '../../core/data/school.service';
+import { JoinInfo, SchoolService } from '../../core/data/school.service';
 import { errorMessage } from '../../core/ui.service';
 
+/** Beitritt zu einer Hundeschule über deren Beitrittslink. */
 @Component({
-  selector: 'app-invite',
+  selector: 'app-join',
   imports: [RouterLink, IonContent, IonButton, IonIcon, IonSpinner],
   styleUrl: './auth.scss',
   template: `
@@ -16,34 +17,32 @@ import { errorMessage } from '../../core/ui.service';
       <div class="auth">
         <div class="brand">
           <ion-icon name="paw-outline" />
-          <h1>Einladung</h1>
+          <h1>Hundeschule beitreten</h1>
         </div>
 
         @if (loading()) {
           <div class="ion-text-center"><ion-spinner /></div>
-        } @else if (!info() || !info()!.valid) {
+        } @else if (!info()) {
           <div class="card">
-            <p>Diese Einladung ist ungültig, abgelaufen oder wurde schon angenommen.</p>
+            <p>Dieser Beitrittslink ist ungültig oder wurde von der Hundeschule abgeschaltet.</p>
+            <p class="muted">Bitte frag deine Trainerin oder deinen Trainer nach dem aktuellen Link.</p>
             <ion-button expand="block" routerLink="/app" (click)="forget()">Weiter</ion-button>
           </div>
         } @else {
           <div class="card">
-            <p>
-              Du wurdest als <strong>{{ info()!.role === 'trainer' ? 'Trainer:in' : 'Kund:in' }}</strong>
-              zu <strong>{{ info()!.school_name }}</strong> eingeladen.
-            </p>
-            <p class="muted">Einladung für {{ info()!.email }}</p>
+            <p>Du trittst <strong>{{ info()!.school_name }}</strong> als Kund:in bei.</p>
+            <p class="muted">Danach siehst du Termine und Umfragen und kannst deine Hunde anmelden.</p>
           </div>
 
           @if (auth.session()) {
-            @if (auth.email()?.toLowerCase() !== info()!.email.toLowerCase()) {
-              <p class="muted">
-                Du bist als {{ auth.email() }} angemeldet. Die Einladung gilt aber für
-                {{ info()!.email }}.
-              </p>
-              <ion-button expand="block" fill="outline" (click)="switchAccount()">Anderes Konto verwenden</ion-button>
+            @if (alreadyMember()) {
+              <ion-button expand="block" (click)="open()">Zur Hundeschule</ion-button>
             } @else {
-              <ion-button expand="block" (click)="accept()" [disabled]="busy()">Einladung annehmen</ion-button>
+              <p class="muted ion-text-center">Angemeldet als {{ auth.email() }}</p>
+              <ion-button expand="block" (click)="join()" [disabled]="busy()">Beitreten</ion-button>
+              <ion-button expand="block" fill="clear" color="medium" (click)="switchAccount()">
+                Anderes Konto verwenden
+              </ion-button>
             }
           } @else {
             <ion-button expand="block" routerLink="/registrieren">Konto erstellen</ion-button>
@@ -57,14 +56,14 @@ import { errorMessage } from '../../core/ui.service';
     </ion-content>
   `,
 })
-export class InvitePage implements OnInit {
+export class JoinPage implements OnInit {
   readonly token = input.required<string>();
 
   protected readonly auth = inject(AuthService);
   private readonly school = inject(SchoolService);
   private readonly router = inject(Router);
 
-  protected readonly info = signal<InvitationInfo | null>(null);
+  protected readonly info = signal<JoinInfo | null>(null);
   protected readonly loading = signal(true);
   protected readonly busy = signal(false);
   protected readonly error = signal('');
@@ -73,13 +72,17 @@ export class InvitePage implements OnInit {
     addIcons({ pawOutline });
   }
 
+  protected alreadyMember() {
+    const id = this.info()?.school_id;
+    return !!id && this.auth.memberships().some((m) => m.school_id === id);
+  }
+
   async ngOnInit() {
     await this.auth.whenReady();
     try {
-      this.info.set(await this.school.invitationInfo(this.token()));
-      // Token merken, damit die Einladung nach Registrierung/Login angenommen wird
-      if (this.info()?.valid) this.auth.setPendingInvite(this.token());
-      else this.auth.setPendingInvite(null);
+      this.info.set(await this.school.joinInfo(this.token()));
+      // Link merken, damit der Beitritt nach Registrierung/Login weitergeht
+      this.auth.setPendingJoin(this.info() && !this.alreadyMember() ? this.token() : null);
     } catch (err) {
       this.error.set(errorMessage(err));
     } finally {
@@ -88,19 +91,25 @@ export class InvitePage implements OnInit {
   }
 
   forget() {
-    this.auth.setPendingInvite(null);
+    this.auth.setPendingJoin(null);
   }
 
   async switchAccount() {
     await this.auth.signOut();
-    this.auth.setPendingInvite(this.token());
+    this.auth.setPendingJoin(this.token());
   }
 
-  async accept() {
+  async open() {
+    this.auth.setPendingJoin(null);
+    this.auth.selectSchool(this.info()!.school_id);
+    await this.router.navigateByUrl('/app', { replaceUrl: true });
+  }
+
+  async join() {
     this.busy.set(true);
     this.error.set('');
     try {
-      await this.auth.acceptInvitation(this.token());
+      await this.auth.joinSchool(this.token());
       await this.router.navigateByUrl('/app', { replaceUrl: true });
     } catch (err) {
       this.error.set(errorMessage(err));

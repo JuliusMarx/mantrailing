@@ -52,15 +52,12 @@ before(async () => {
   await asUser(ids.otherTrainer);
   ids.otherSchool = (await one(`select create_school('Andere Schule') as id`)).id;
 
-  // Einladungen annehmen
+  // Über den Beitrittslink der Schule beitreten
   await asUser(ids.trainer);
-  for (const email of ['alice@test.local', 'bob@test.local']) {
-    await db.query(`insert into invitations (school_id, email) values ($1, $2)`, [ids.school, email]);
-  }
-  const invites = await rows(`select email, token from invitations where school_id = $1`, [ids.school]);
-  for (const inv of invites) {
-    await asUser(inv.email.startsWith('alice') ? ids.alice : ids.bob);
-    await db.query(`select accept_invitation($1)`, [inv.token]);
+  ids.joinToken = (await one(`select school_join_token($1) as t`, [ids.school])).t;
+  for (const user of [ids.alice, ids.bob]) {
+    await asUser(user);
+    await db.query(`select join_school($1)`, [ids.joinToken]);
   }
 
   ids.aliceDog1 = await addDog(ids.alice, 'Luna');
@@ -76,14 +73,37 @@ test('Profil wird beim Anlegen eines Users erzeugt', async () => {
   assert.equal(me.full_name, 'Alice Kundin');
 });
 
-test('Einladung nur für die passende E-Mail-Adresse', async () => {
+test('Beitrittslink: nur Trainer sehen ihn, Erneuern macht den alten ungültig', async () => {
+  // Kund:innen sehen den Token weder direkt noch über die Funktion
+  await asUser(ids.alice);
+  await assert.rejects(db.query(`select join_token from schools`), /permission denied/);
+  await assert.rejects(db.query(`select school_join_token($1)`, [ids.school]), /Keine Berechtigung/);
+  await assert.rejects(db.query(`select reset_school_join_token($1, true)`, [ids.school]), /Keine Berechtigung/);
+
+  // Erneut beitreten ändert nichts; eine Trainerin bleibt Trainerin
+  await db.query(`select join_school($1)`, [ids.joinToken]);
   await asUser(ids.trainer);
-  const { token } = await one(
-    `insert into invitations (school_id, email) values ($1, 'someone@test.local') returning token`,
-    [ids.school],
-  );
-  await asUser(ids.otherTrainer);
-  await assert.rejects(db.query(`select accept_invitation($1)`, [token]), /andere E-Mail/);
+  await db.query(`select join_school($1)`, [ids.joinToken]);
+  const role = await one(`select role from memberships where user_id = $1 and school_id = $2`, [ids.trainer, ids.school]);
+  assert.equal(role.role, 'trainer');
+
+  const newToken = (await one(`select reset_school_join_token($1, true) as t`, [ids.school])).t;
+  assert.notEqual(newToken, ids.joinToken);
+  const outsider = await createUser('neu@test.local', 'Neu');
+  await asUser(outsider);
+  await assert.rejects(db.query(`select join_school($1)`, [ids.joinToken]), /ungültig/);
+  await db.query(`select join_school($1)`, [newToken]);
+  const m = await one(`select role from memberships where user_id = $1`, [outsider]);
+  assert.equal(m.role, 'customer');
+
+  // Abschalten
+  await asUser(ids.trainer);
+  assert.equal((await one(`select reset_school_join_token($1, false) as t`, [ids.school])).t, null);
+  await asAnon();
+  assert.equal((await rows(`select * from school_join_info($1)`, [newToken])).length, 0);
+  // wieder einschalten für die folgenden Tests
+  await asUser(ids.trainer);
+  ids.joinToken = (await one(`select reset_school_join_token($1, true) as t`, [ids.school])).t;
 });
 
 test('Kunde sieht nur eigene Hunde, Trainer die Hunde seiner Kunden', async () => {

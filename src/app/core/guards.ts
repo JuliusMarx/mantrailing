@@ -15,8 +15,8 @@ export const memberGuard: CanActivateFn = async () => {
   const router = inject(Router);
   await auth.whenReady();
   if (!auth.session()) return router.parseUrl('/login');
-  const invite = auth.pendingInvite();
-  if (invite) return router.parseUrl(`/invite/${invite}`);
+  const join = auth.pendingJoin();
+  if (join) return router.parseUrl(`/beitreten/${join}`);
   return auth.memberships().length ? true : router.parseUrl('/willkommen');
 };
 

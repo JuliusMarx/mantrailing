@@ -146,12 +146,24 @@ test('Trails: speichern, zuweisen, teilen, öffentlicher Link', async () => {
   assert.equal(await api.anon.op('trails.shared', { token }), null);
 });
 
-test('Einladung: Infos ohne Login, nur passende E-Mail kann annehmen', async () => {
-  const inv = await api.trainer.op('invitations.create', { schoolId: api.schoolId, email: 'neu@test.local', role: 'customer' });
-  const info = await api.anon.op('invitation.info', { token: inv.token });
+test('Beitrittslink: Schulname ohne Login, Beitritt als Kundin', async () => {
+  const token = await api.trainer.op('school.joinToken', { schoolId: api.schoolId });
+  const info = await api.anon.op('school.joinInfo', { token });
   assert.equal(info.school_name, 'Spürnasen Mantrailing');
-  assert.equal(info.valid, true);
-  await assert.rejects(api.kunde.op('invitation.accept', { token: inv.token }), /andere E-Mail/);
+  await assert.rejects(api.kunde.op('school.joinToken', { schoolId: api.schoolId }), /Berechtigung/);
+  await assert.rejects(api.anon.op('school.join', { token }), (e) => e.status === 401);
+
+  const { token: auth } = await client(handle).post('/auth/signup', { email: 'neu@test.local', password: 'langes-passwort', full_name: 'Nina Neu' });
+  const neu = client(handle, auth);
+  assert.equal(await neu.op('school.join', { token }), api.schoolId);
+  const [m] = await neu.op('memberships.mine');
+  assert.equal(m.role, 'customer');
+  await assert.rejects(neu.op('school.join', { token: 'x'.repeat(32) }), /ungültig/);
+
+  // Umbenennen geht trotz gesperrter join_token-Spalte
+  const renamed = await api.trainer.op('school.rename', { schoolId: api.schoolId, name: 'Spürnasen Mantrailing' });
+  assert.equal(renamed.name, 'Spürnasen Mantrailing');
+  await assert.rejects(api.kunde.op('school.rename', { schoolId: api.schoolId, name: 'Gekapert' }), /Berechtigung/);
 });
 
 test('Passwort: Trainerin setzt zurück, Kundin ändert selbst', async () => {

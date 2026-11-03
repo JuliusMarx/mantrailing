@@ -60,11 +60,8 @@ export async function seedIfEmpty(handle) {
   const kunde2 = await signup(handle, TEST_USERS.kunde2);
 
   const schoolId = await trainer.api.op('school.create', { name: 'Spürnasen Mantrailing' });
-  for (const k of [kunde, kunde2]) {
-    const email = k === kunde ? TEST_USERS.kunde.email : TEST_USERS.kunde2.email;
-    const inv = await trainer.api.op('invitations.create', { schoolId, email, role: 'customer' });
-    await k.api.op('invitation.accept', { token: inv.token });
-  }
+  const joinToken = await trainer.api.op('school.joinToken', { schoolId });
+  for (const k of [kunde, kunde2]) await k.api.op('school.join', { token: joinToken });
 
   await kunde.api.op('dogs.save', { input: { name: 'Luna', breed: 'Labrador Retriever', birth_date: '2021-04-12' } });
   await kunde.api.op('dogs.save', { input: { name: 'Balu', breed: 'Beagle', birth_date: '2019-09-03' } });

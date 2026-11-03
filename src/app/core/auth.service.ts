@@ -3,7 +3,7 @@ import { ApiError, ApiService } from './api.service';
 import { Membership, Profile } from './models';
 
 const SCHOOL_KEY = 'mantrailing.schoolId';
-const PENDING_INVITE_KEY = 'mantrailing.pendingInvite';
+const PENDING_JOIN_KEY = 'mantrailing.pendingJoin';
 
 interface User {
   id: string;
@@ -132,9 +132,10 @@ export class AuthService {
     return id;
   }
 
-  async acceptInvitation(token: string) {
-    const schoolId = await this.api.op<string>('invitation.accept', { token });
-    this.setPendingInvite(null);
+  /** Über den Beitrittslink einer Schule beitreten. */
+  async joinSchool(token: string) {
+    const schoolId = await this.api.op<string>('school.join', { token });
+    this.setPendingJoin(null);
     await this.reload();
     this.selectSchool(schoolId);
     return schoolId;
@@ -145,10 +146,11 @@ export class AuthService {
     this.clear();
   }
 
-  pendingInvite() {
-    return readStorage(PENDING_INVITE_KEY);
+  /** Beitrittslink, der nach Registrierung/Login noch eingelöst werden soll. */
+  pendingJoin() {
+    return readStorage(PENDING_JOIN_KEY);
   }
-  setPendingInvite(token: string | null) {
-    writeStorage(PENDING_INVITE_KEY, token);
+  setPendingJoin(token: string | null) {
+    writeStorage(PENDING_JOIN_KEY, token);
   }
 }

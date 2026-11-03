@@ -163,35 +163,30 @@ export const OPS: Record<string, Op> = {
     run: (tx, p) => scalar(tx, `select create_school($1)`, [str(p, 'name')]),
   },
   'school.rename': {
-    run: (tx, p) => updateRow(tx, { table: 'schools', columns: ['name'] }, uuid(p, 'schoolId'), { name: str(p, 'name') }),
-  },
-
-  // Einladungen
-  'invitation.info': {
-    anon: true,
-    run: (tx, p) => first(tx, `select * from get_invitation($1)`, [str(p, 'token')]),
-  },
-  'invitation.accept': {
-    run: (tx, p) => scalar(tx, `select accept_invitation($1)`, [str(p, 'token')]),
-  },
-  'invitations.list': {
-    run: (tx, p) =>
-      all(tx, `select * from invitations where school_id = $1 and accepted_at is null order by created_at desc`, [
-        uuid(p, 'schoolId'),
-      ]),
-  },
-  'invitations.create': {
     async run(tx, p) {
-      const email = str(p, 'email').trim().toLowerCase();
-      return first(tx, `insert into invitations (school_id, email, role) values ($1, $2, $3) returning *`, [
+      const row = await first(tx, `update schools set name = $1 where id = $2 returning id, name`, [
+        str(p, 'name').trim(),
         uuid(p, 'schoolId'),
-        email,
-        oneOf(p, 'role', ['trainer', 'customer'] as const),
       ]);
+      if (!row) throw new HttpError(403, 'Keine Berechtigung');
+      return row;
     },
   },
-  'invitations.revoke': {
-    run: (tx, p) => all(tx, `delete from invitations where id = $1`, [uuid(p, 'id')]),
+
+  // Beitrittslink der Schule
+  'school.joinInfo': {
+    anon: true,
+    run: (tx, p) => first(tx, `select * from school_join_info($1)`, [str(p, 'token')]),
+  },
+  'school.join': {
+    run: (tx, p) => scalar(tx, `select join_school($1)`, [str(p, 'token')]),
+  },
+  'school.joinToken': {
+    run: (tx, p) => scalar(tx, `select school_join_token($1)`, [uuid(p, 'schoolId')]),
+  },
+  'school.resetJoinToken': {
+    run: (tx, p) =>
+      scalar(tx, `select reset_school_join_token($1, $2)`, [uuid(p, 'schoolId'), p['enabled'] !== false]),
   },
 
   // Mitglieder (Trainer)

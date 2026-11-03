@@ -1,6 +1,4 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { DatePipe } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import {
   ActionSheetController,
   AlertController,
@@ -10,138 +8,125 @@ import {
   IonContent,
   IonHeader,
   IonIcon,
-  IonInput,
   IonItem,
   IonLabel,
   IonList,
   IonModal,
-  IonNote,
   IonRefresher,
   IonRefresherContent,
   IonSearchbar,
-  IonSegment,
-  IonSegmentButton,
-  IonSelect,
-  IonSelectOption,
+  IonSpinner,
   IonTitle,
   IonToolbar,
   ViewWillEnter,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { callOutline, mailOutline, pawOutline, personAddOutline, peopleOutline, shareSocialOutline } from 'ionicons/icons';
+import {
+  callOutline,
+  copyOutline,
+  pawOutline,
+  peopleOutline,
+  personAddOutline,
+  refreshOutline,
+  shareSocialOutline,
+} from 'ionicons/icons';
 import { AuthService } from '../../core/auth.service';
-import { inviteUrl, Member, SchoolService, shareLink } from '../../core/data/school.service';
-import { Invitation, Role } from '../../core/models';
+import { joinUrl, Member, SchoolService, shareLink } from '../../core/data/school.service';
 import { UiService } from '../../core/ui.service';
 import { dogAge } from '../dogs/dogs.page';
 
 @Component({
   selector: 'app-customers',
   imports: [
-    DatePipe,
-    FormsModule,
     IonHeader,
     IonToolbar,
     IonTitle,
     IonButtons,
     IonButton,
     IonContent,
-    IonSegment,
-    IonSegmentButton,
     IonLabel,
     IonList,
     IonItem,
     IonIcon,
     IonBadge,
-    IonNote,
     IonSearchbar,
     IonModal,
-    IonInput,
-    IonSelect,
-    IonSelectOption,
+    IonSpinner,
     IonRefresher,
     IonRefresherContent,
   ],
   template: `
     <ion-header>
       <ion-toolbar>
-        <ion-title>Kund:innen</ion-title>
+        <ion-title>Kund:innen ({{ members().length }})</ion-title>
         <ion-buttons slot="end">
-          <ion-button (click)="openInvite()" aria-label="Einladen">
+          <ion-button (click)="openJoinLink()" aria-label="Beitrittslink">
             <ion-icon slot="icon-only" name="person-add-outline" />
           </ion-button>
         </ion-buttons>
-      </ion-toolbar>
-      <ion-toolbar>
-        <ion-segment [value]="tab()" (ionChange)="tab.set($any($event.detail.value))">
-          <ion-segment-button value="members"><ion-label>Mitglieder ({{ members().length }})</ion-label></ion-segment-button>
-          <ion-segment-button value="invites"><ion-label>Einladungen ({{ invitations().length }})</ion-label></ion-segment-button>
-        </ion-segment>
       </ion-toolbar>
     </ion-header>
 
     <ion-content>
       <ion-refresher slot="fixed" (ionRefresh)="load($event)"><ion-refresher-content /></ion-refresher>
 
-      @if (tab() === 'members') {
-        <ion-searchbar placeholder="Name oder Hund suchen" [debounce]="150" (ionInput)="query.set($any($event.target).value ?? '')" />
-        @if (loaded() && members().length <= 1) {
-          <div class="empty-state">
-            <ion-icon name="people-outline" />
-            <p>Lade deine Kund:innen per Link ein – oben rechts auf das Personen-Symbol tippen.</p>
-          </div>
-        }
-        <ion-list>
-          @for (m of filtered(); track m.user_id) {
-            <ion-item button detail="false" (click)="memberMenu(m)">
-              <ion-label>
-                <h2>
-                  {{ m.profiles?.full_name || 'Ohne Namen' }}
-                  @if (m.role === 'trainer') { <ion-badge color="primary">Trainer:in</ion-badge> }
-                  @if (m.user_id === auth.userId()) { <ion-badge color="medium">Du</ion-badge> }
-                </h2>
-                @for (d of m.dogs; track d.id) {
-                  <p><ion-icon name="paw-outline" /> {{ d.name }}{{ d.breed ? ' · ' + d.breed : '' }}{{ d.birth_date ? ' · ' + age(d.birth_date) : '' }}</p>
-                  @if (d.notes) { <p class="muted notes">{{ d.notes }}</p> }
-                } @empty {
-                  <p class="muted">Noch keine Hunde</p>
-                }
-              </ion-label>
-            </ion-item>
-          }
-        </ion-list>
-      } @else {
-        <ion-list>
-          @for (inv of invitations(); track inv.id) {
-            <ion-item button detail="false" (click)="invitationMenu(inv)">
-              <ion-icon slot="start" name="mail-outline" />
-              <ion-label>
-                <h3>{{ inv.email }}</h3>
-                <p>{{ inv.role === 'trainer' ? 'Trainer:in' : 'Kund:in' }} · gültig bis {{ inv.expires_at | date: 'd. MMM' }}</p>
-              </ion-label>
-              @if (isExpired(inv)) { <ion-badge slot="end" color="medium">abgelaufen</ion-badge> }
-            </ion-item>
-          } @empty {
-            <ion-item lines="none"><ion-note>Keine offenen Einladungen.</ion-note></ion-item>
-          }
-        </ion-list>
+      <ion-searchbar placeholder="Name oder Hund suchen" [debounce]="150" (ionInput)="query.set($any($event.target).value ?? '')" />
+      @if (loaded() && members().length <= 1) {
+        <div class="empty-state">
+          <ion-icon name="people-outline" />
+          <p>Teile den Beitrittslink deiner Hundeschule, damit deine Kund:innen beitreten können.</p>
+          <ion-button (click)="openJoinLink()">Beitrittslink teilen</ion-button>
+        </div>
       }
+      <ion-list>
+        @for (m of filtered(); track m.user_id) {
+          <ion-item button detail="false" (click)="memberMenu(m)">
+            <ion-label>
+              <h2>
+                {{ m.profiles?.full_name || 'Ohne Namen' }}
+                @if (m.role === 'trainer') { <ion-badge color="primary">Trainer:in</ion-badge> }
+                @if (m.user_id === auth.userId()) { <ion-badge color="medium">Du</ion-badge> }
+              </h2>
+              @for (d of m.dogs; track d.id) {
+                <p><ion-icon name="paw-outline" /> {{ d.name }}{{ d.breed ? ' · ' + d.breed : '' }}{{ d.birth_date ? ' · ' + age(d.birth_date) : '' }}</p>
+                @if (d.notes) { <p class="muted notes">{{ d.notes }}</p> }
+              } @empty {
+                <p class="muted">Noch keine Hunde</p>
+              }
+            </ion-label>
+          </ion-item>
+        }
+      </ion-list>
 
-      <ion-modal [isOpen]="inviteOpen()" [initialBreakpoint]="0.6" [breakpoints]="[0, 0.6, 0.9]" (didDismiss)="inviteOpen.set(false)">
+      <ion-modal [isOpen]="joinOpen()" [initialBreakpoint]="0.75" [breakpoints]="[0, 0.75, 1]" (didDismiss)="joinOpen.set(false)">
         <ng-template>
           <ion-content class="ion-padding">
-            <h2>Einladen</h2>
-            <p class="muted">Du bekommst einen Link, den du per WhatsApp, Mail oder SMS verschicken kannst. Er gilt 14 Tage.</p>
-            <ion-list lines="none" class="form">
-              <ion-input fill="outline" label="E-Mail-Adresse" labelPlacement="floating" type="email" inputmode="email" [(ngModel)]="inviteEmail" />
-              <ion-select fill="outline" label="Rolle" labelPlacement="floating" interface="popover" [(ngModel)]="inviteRole">
-                <ion-select-option value="customer">Kund:in</ion-select-option>
-                <ion-select-option value="trainer">Trainer:in</ion-select-option>
-              </ion-select>
-            </ion-list>
-            <ion-button expand="block" (click)="invite()" [disabled]="!inviteEmail.includes('@')">
-              <ion-icon slot="start" name="share-social-outline" />Einladung erstellen &amp; teilen
-            </ion-button>
+            <h2>Beitrittslink</h2>
+            <p class="muted">
+              Wer diesen Link öffnet und sich anmeldet, wird Kund:in von {{ auth.schoolName() }}.
+              Teile ihn z. B. in eurer WhatsApp-Gruppe oder auf deiner Website.
+            </p>
+            @if (joinLoading()) {
+              <div class="ion-text-center"><ion-spinner /></div>
+            } @else if (joinToken(); as token) {
+              <div class="link">{{ url(token) }}</div>
+              <ion-button expand="block" (click)="share(token)">
+                <ion-icon slot="start" name="share-social-outline" />Link teilen
+              </ion-button>
+              <ion-button expand="block" fill="outline" (click)="copy(token)">
+                <ion-icon slot="start" name="copy-outline" />Kopieren
+              </ion-button>
+              <ion-button expand="block" fill="clear" (click)="renew()">
+                <ion-icon slot="start" name="refresh-outline" />Neuen Link erzeugen
+              </ion-button>
+              <ion-button expand="block" fill="clear" color="danger" (click)="disable()">Link abschalten</ion-button>
+              <p class="muted small">
+                Ein neuer Link macht den alten ungültig. Wer schon beigetreten ist, bleibt Mitglied.
+              </p>
+            } @else {
+              <p>Der Beitrittslink ist abgeschaltet. Gerade kann niemand neu beitreten.</p>
+              <ion-button expand="block" (click)="renew()">Link einschalten</ion-button>
+            }
           </ion-content>
         </ng-template>
       </ion-modal>
@@ -157,12 +142,17 @@ import { dogAge } from '../dogs/dogs.page';
       white-space: normal;
       font-size: 13px;
     }
-    .form {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      background: transparent;
-      margin-bottom: 12px;
+    .link {
+      background: var(--ion-color-light);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin: 12px 0;
+      font-family: monospace;
+      font-size: 13px;
+      word-break: break-all;
+    }
+    .small {
+      font-size: 13px;
     }
   `,
 })
@@ -173,15 +163,14 @@ export class CustomersPage implements ViewWillEnter {
   private readonly actionSheets = inject(ActionSheetController);
   private readonly alerts = inject(AlertController);
 
-  protected readonly tab = signal<'members' | 'invites'>('members');
   protected readonly members = signal<Member[]>([]);
-  protected readonly invitations = signal<Invitation[]>([]);
   protected readonly loaded = signal(false);
   protected readonly query = signal('');
-  protected readonly inviteOpen = signal(false);
-  protected inviteEmail = '';
-  protected inviteRole: Role = 'customer';
+  protected readonly joinOpen = signal(false);
+  protected readonly joinLoading = signal(false);
+  protected readonly joinToken = signal<string | null>(null);
   protected readonly age = dogAge;
+  protected readonly url = joinUrl;
 
   protected readonly filtered = computed(() => {
     const q = this.query().trim().toLowerCase();
@@ -194,7 +183,15 @@ export class CustomersPage implements ViewWillEnter {
   });
 
   constructor() {
-    addIcons({ personAddOutline, pawOutline, mailOutline, peopleOutline, shareSocialOutline, callOutline });
+    addIcons({
+      personAddOutline,
+      pawOutline,
+      peopleOutline,
+      shareSocialOutline,
+      callOutline,
+      copyOutline,
+      refreshOutline,
+    });
   }
 
   ionViewWillEnter() {
@@ -203,9 +200,7 @@ export class CustomersPage implements ViewWillEnter {
 
   async load(event?: CustomEvent) {
     try {
-      const [members, invitations] = await Promise.all([this.school.members(), this.school.invitations()]);
-      this.members.set(members);
-      this.invitations.set(invitations);
+      this.members.set(await this.school.members());
     } catch (err) {
       await this.ui.error(err);
     } finally {
@@ -214,51 +209,60 @@ export class CustomersPage implements ViewWillEnter {
     }
   }
 
-  protected isExpired(inv: Invitation) {
-    return new Date(inv.expires_at).getTime() < Date.now();
-  }
+  // --- Beitrittslink ---------------------------------------------------------
 
-  openInvite() {
-    this.inviteEmail = '';
-    this.inviteRole = 'customer';
-    this.inviteOpen.set(true);
-  }
-
-  async invite() {
-    const inv = await this.ui.run(() => this.school.invite(this.inviteEmail, this.inviteRole));
-    if (!inv) return;
-    this.inviteOpen.set(false);
-    this.invitations.update((list) => [inv, ...list]);
-    this.tab.set('invites');
-    await this.shareInvitation(inv);
-  }
-
-  private async shareInvitation(inv: Invitation) {
-    const result = await shareLink(
-      `Einladung zu ${this.auth.schoolName()}`,
-      `Hallo! Hier ist deine Einladung zu ${this.auth.schoolName()}:`,
-      inviteUrl(inv.token),
-    );
-    if (result === 'copied') await this.ui.toast('Einladungslink kopiert', 'success');
-  }
-
-  async invitationMenu(inv: Invitation) {
-    const sheet = await this.actionSheets.create({
-      header: inv.email,
-      buttons: [
-        { text: 'Link erneut teilen', data: 'share' },
-        { text: 'Einladung zurückziehen', role: 'destructive', data: 'revoke' },
-        { text: 'Abbrechen', role: 'cancel' },
-      ],
-    });
-    await sheet.present();
-    const { data } = await sheet.onDidDismiss();
-    if (data === 'share') await this.shareInvitation(inv);
-    if (data === 'revoke') {
-      await this.ui.run(() => this.school.revokeInvitation(inv.id));
-      this.invitations.update((list) => list.filter((i) => i.id !== inv.id));
+  async openJoinLink() {
+    this.joinOpen.set(true);
+    this.joinLoading.set(true);
+    try {
+      this.joinToken.set(await this.school.joinToken());
+    } catch (err) {
+      await this.ui.error(err);
+    } finally {
+      this.joinLoading.set(false);
     }
   }
+
+  async share(token: string) {
+    const name = this.auth.schoolName();
+    const result = await shareLink(name, `Tritt ${name} in der Mantrailing-App bei:`, joinUrl(token));
+    if (result === 'copied') await this.ui.toast('Link kopiert', 'success');
+  }
+
+  async copy(token: string) {
+    await navigator.clipboard.writeText(joinUrl(token));
+    await this.ui.toast('Link kopiert', 'success');
+  }
+
+  async renew() {
+    if (this.joinToken()) {
+      const ok = await this.ui.confirm(
+        'Neuen Link erzeugen?',
+        'Der bisherige Link funktioniert danach nicht mehr.',
+        'Erzeugen',
+      );
+      if (!ok) return;
+    }
+    const token = await this.ui.run(() => this.school.resetJoinToken(true));
+    if (token) this.joinToken.set(token);
+  }
+
+  async disable() {
+    const ok = await this.ui.confirm(
+      'Link abschalten?',
+      'Danach kann niemand mehr über den Link beitreten.',
+      'Abschalten',
+      true,
+    );
+    if (!ok) return;
+    const done = await this.ui.run(async () => {
+      await this.school.resetJoinToken(false);
+      return true;
+    });
+    if (done) this.joinToken.set(null);
+  }
+
+  // --- Mitglieder --------------------------------------------------------------
 
   async memberMenu(m: Member) {
     if (m.user_id === this.auth.userId()) return;
@@ -281,7 +285,14 @@ export class CustomersPage implements ViewWillEnter {
       await this.ui.run(() => this.school.setRole(m.user_id, data));
       await this.load();
     }
-    if (data === 'reset' && (await this.ui.confirm(`Passwort von ${name} zurücksetzen?`, 'Du bekommst ein neues Passwort, das du der Person weitergibst. Das alte gilt dann nicht mehr.', 'Zurücksetzen'))) {
+    if (
+      data === 'reset' &&
+      (await this.ui.confirm(
+        `Passwort von ${name} zurücksetzen?`,
+        'Du bekommst ein neues Passwort, das du der Person weitergibst. Das alte gilt dann nicht mehr.',
+        'Zurücksetzen',
+      ))
+    ) {
       const password = await this.ui.run(() => this.school.resetPassword(m.user_id));
       if (password) {
         const alert = await this.alerts.create({
@@ -295,7 +306,15 @@ export class CustomersPage implements ViewWillEnter {
         await alert.present();
       }
     }
-    if (data === 'remove' && (await this.ui.confirm(`${name} entfernen?`, 'Die Person verliert den Zugriff auf Termine und Trails deiner Schule.', 'Entfernen', true))) {
+    if (
+      data === 'remove' &&
+      (await this.ui.confirm(
+        `${name} entfernen?`,
+        'Die Person verliert den Zugriff auf Termine und Trails deiner Schule.',
+        'Entfernen',
+        true,
+      ))
+    ) {
       await this.ui.run(() => this.school.removeMember(m.user_id));
       await this.load();
     }

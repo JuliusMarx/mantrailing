@@ -32,7 +32,7 @@ npm run build        # Produktions-Build nach dist/mantrailing/browser
 Lokal werden beim ersten Start Testdaten angelegt; die Test-Logins stehen in `server/seed.mjs`.
 Im Entwicklungsmodus lässt sich der Trail-Editor unter `/dev/editor` ohne Login ausprobieren.
 
-**Login:** E-Mail und Passwort, ohne Bestätigungsmail. Vergessene Passwörter setzt eine Trainerin oder ein Trainer unter „Kunden“ zurück (die App zeigt ein Einmal-Passwort an).
+**Login:** E-Mail und Passwort, ohne Bestätigungsmail. Kund:innen treten über den Beitrittslink der Schule bei (Trainer:in → „Kunden“ → Personen-Symbol). Vergessene Passwörter setzt eine Trainerin oder ein Trainer unter „Kunden“ zurück (die App zeigt ein Einmal-Passwort an).
 
 ## Aufbau
 
@@ -53,7 +53,7 @@ server/                    Lokale Entwicklung (PGlite), Testdaten, DB-/API-Tests
 
 ### Datenmodell (Kurzfassung)
 
-- `schools` und `memberships` (Rolle pro Schule), `invitations` (Einladungslink, 14 Tage gültig)
+- `schools` und `memberships` (Rolle pro Schule), `join_token` an der Schule (Beitrittslink, erneuerbar und abschaltbar)
 - `dogs` gehören einem Profil
 - `appointments` mit `max_dogs` (die Kapazität zählt Hunde). In `appointment_participants` steht pro Hund `registered`, `waitlist` oder `cancelled`. Wird ein Platz frei, rückt automatisch der nächste Hund von der Warteliste nach.
 - `polls` mit `poll_options`, `poll_votes` (Ja/Vielleicht/Nein pro Option) und `poll_dogs` (mit welchen Hunden jemand kommt). `finalize_poll()` macht aus einer Option einen Termin.

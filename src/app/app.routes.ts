@@ -15,8 +15,8 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/register.page').then((m) => m.RegisterPage),
   },
   {
-    path: 'invite/:token',
-    loadComponent: () => import('./features/auth/invite.page').then((m) => m.InvitePage),
+    path: 'beitreten/:token',
+    loadComponent: () => import('./features/auth/join.page').then((m) => m.JoinPage),
   },
   {
     path: 'willkommen',

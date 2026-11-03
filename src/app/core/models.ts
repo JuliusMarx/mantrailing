@@ -30,17 +30,6 @@ export interface Membership {
   profiles?: Profile;
 }
 
-export interface Invitation {
-  id: string;
-  school_id: string;
-  email: string;
-  role: Role;
-  token: string;
-  expires_at: string;
-  accepted_at: string | null;
-  created_at: string;
-}
-
 export interface Dog {
   id: string;
   owner_id: string;
