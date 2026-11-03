@@ -167,7 +167,11 @@ export class MapComponent {
 
   private async init() {
     // MapLibre erst hier laden, damit es nicht im Haupt-Bundle landet
-    const maplibre = (this.maplibre = await import('maplibre-gl'));
+    // maplibre-gl ist CommonJS: im Produktions-Build steckt die API unter `default`
+    const mod = (await import('maplibre-gl')) as typeof import('maplibre-gl') & {
+      default?: typeof import('maplibre-gl');
+    };
+    const maplibre = (this.maplibre = mod.default ?? mod);
     const el = this.container().nativeElement;
     const map = new maplibre.Map({
       container: el,
