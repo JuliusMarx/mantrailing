@@ -3,6 +3,7 @@ import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   ActionSheetController,
+  AlertController,
   IonBadge,
   IonButton,
   IonButtons,
@@ -170,6 +171,7 @@ export class CustomersPage implements ViewWillEnter {
   private readonly school = inject(SchoolService);
   private readonly ui = inject(UiService);
   private readonly actionSheets = inject(ActionSheetController);
+  private readonly alerts = inject(AlertController);
 
   protected readonly tab = signal<'members' | 'invites'>('members');
   protected readonly members = signal<Member[]>([]);
@@ -268,6 +270,7 @@ export class CustomersPage implements ViewWillEnter {
         ? { text: 'Zur Trainer:in machen', data: 'trainer' }
         : { text: 'Zur Kund:in machen', data: 'customer' },
     );
+    buttons.push({ text: 'Passwort zurücksetzen', data: 'reset' });
     buttons.push({ text: 'Aus der Schule entfernen', role: 'destructive', data: 'remove' });
     buttons.push({ text: 'Abbrechen', role: 'cancel' });
     const sheet = await this.actionSheets.create({ header: name, buttons });
@@ -277,6 +280,20 @@ export class CustomersPage implements ViewWillEnter {
     if (data === 'trainer' || data === 'customer') {
       await this.ui.run(() => this.school.setRole(m.user_id, data));
       await this.load();
+    }
+    if (data === 'reset' && (await this.ui.confirm(`Passwort von ${name} zurücksetzen?`, 'Du bekommst ein neues Passwort, das du der Person weitergibst. Das alte gilt dann nicht mehr.', 'Zurücksetzen'))) {
+      const password = await this.ui.run(() => this.school.resetPassword(m.user_id));
+      if (password) {
+        const alert = await this.alerts.create({
+          header: 'Neues Passwort',
+          message: `Gib ${name} dieses Passwort weiter: ${password} – sie oder er kann es danach unter „Konto“ ändern.`,
+          buttons: [
+            { text: 'Kopieren', handler: () => void navigator.clipboard.writeText(password) },
+            { text: 'OK', role: 'cancel' },
+          ],
+        });
+        await alert.present();
+      }
     }
     if (data === 'remove' && (await this.ui.confirm(`${name} entfernen?`, 'Die Person verliert den Zugriff auf Termine und Trails deiner Schule.', 'Entfernen', true))) {
       await this.ui.run(() => this.school.removeMember(m.user_id));

@@ -1,7 +1,7 @@
 import { inject, Injectable } from '@angular/core';
-import { Appointment, AppointmentSummary, Participant, ParticipantStatus } from '../models';
-import { SupabaseService, unwrap } from '../supabase.service';
+import { ApiService } from '../api.service';
 import { AuthService } from '../auth.service';
+import { Appointment, AppointmentSummary, Participant, ParticipantStatus } from '../models';
 
 export type AppointmentInput = Omit<Appointment, 'id' | 'school_id' | 'poll_id' | 'status'>;
 
@@ -13,92 +13,54 @@ export interface AppointmentWithSummary extends Appointment {
 
 @Injectable({ providedIn: 'root' })
 export class AppointmentsService {
-  private readonly db = inject(SupabaseService).client;
+  private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
 
-  async list(range: 'upcoming' | 'past' = 'upcoming'): Promise<AppointmentWithSummary[]> {
-    const schoolId = this.auth.schoolId()!;
-    const since = new Date(Date.now() - 6 * 3600 * 1000).toISOString();
-    let query = this.db.from('appointments').select('*').eq('school_id', schoolId);
-    query =
-      range === 'upcoming'
-        ? query.gte('starts_at', since).order('starts_at')
-        : query.lt('starts_at', since).order('starts_at', { ascending: false }).limit(50);
-    const appointments = unwrap(await query) as Appointment[];
-    return this.withSummaries(appointments);
+  list(range: 'upcoming' | 'past' = 'upcoming') {
+    return this.api.op<AppointmentWithSummary[]>('appointments.list', {
+      schoolId: this.auth.schoolId(),
+      range,
+    });
   }
 
-  async get(id: string): Promise<AppointmentWithSummary | null> {
-    const appt = unwrap(
-      await this.db.from('appointments').select('*').eq('id', id).maybeSingle(),
-    ) as Appointment | null;
-    if (!appt) return null;
-    return (await this.withSummaries([appt]))[0];
-  }
-
-  private async withSummaries(appointments: Appointment[]): Promise<AppointmentWithSummary[]> {
-    if (!appointments.length) return [];
-    const ids = appointments.map((a) => a.id);
-    const [summaries, mine] = await Promise.all([
-      this.db.from('appointment_summary').select('*').in('appointment_id', ids),
-      this.db
-        .from('appointment_participants')
-        .select('*, dogs(id, name, breed)')
-        .in('appointment_id', ids)
-        .eq('user_id', this.auth.userId()!)
-        .neq('status', 'cancelled'),
-    ]);
-    const summaryList = unwrap(summaries) as AppointmentSummary[];
-    const mineList = unwrap(mine) as Participant[];
-    return appointments.map((a) => ({
-      ...a,
-      summary: summaryList.find((s) => s.appointment_id === a.id) ?? null,
-      mine: mineList.filter((p) => p.appointment_id === a.id),
-    }));
+  get(id: string) {
+    return this.api.op<AppointmentWithSummary | null>('appointments.get', { id });
   }
 
   /** Alle Teilnehmer (Trainer). */
-  async participants(appointmentId: string): Promise<Participant[]> {
-    return unwrap(
-      await this.db
-        .from('appointment_participants')
-        .select('*, dogs(id, name, breed), profiles(id, full_name)')
-        .eq('appointment_id', appointmentId)
-        .order('created_at'),
-    ) as Participant[];
+  participants(appointmentId: string) {
+    return this.api.op<Participant[]>('appointments.participants', { id: appointmentId });
   }
 
-  async save(input: Partial<AppointmentInput>, id?: string): Promise<Appointment> {
-    const query = id
-      ? this.db.from('appointments').update(input).eq('id', id)
-      : this.db.from('appointments').insert({ ...input, school_id: this.auth.schoolId() });
-    return unwrap(await query.select().single()) as Appointment;
+  save(input: Partial<AppointmentInput>, id?: string) {
+    return this.api.op<Appointment>('appointments.save', {
+      id,
+      schoolId: this.auth.schoolId(),
+      input,
+    });
   }
 
   async setStatus(id: string, status: Appointment['status']) {
-    unwrap(await this.db.from('appointments').update({ status }).eq('id', id));
+    await this.api.op('appointments.setStatus', { id, status });
   }
 
   async remove(id: string) {
-    unwrap(await this.db.from('appointments').delete().eq('id', id));
+    await this.api.op('appointments.remove', { id });
   }
 
-  async register(appointmentId: string, dogIds: string[]) {
-    return unwrap(
-      await this.db.rpc('register_for_appointment', { p_appointment: appointmentId, p_dogs: dogIds }),
-    ) as { dog_id: string; status: ParticipantStatus }[];
+  register(appointmentId: string, dogIds: string[]) {
+    return this.api.op<{ dog_id: string; status: ParticipantStatus }[]>('appointments.register', {
+      id: appointmentId,
+      dogIds,
+    });
   }
 
   async cancelRegistration(appointmentId: string, dogIds: string[]) {
-    unwrap(
-      await this.db.rpc('cancel_registration', { p_appointment: appointmentId, p_dogs: dogIds }),
-    );
+    await this.api.op('appointments.cancelRegistration', { id: appointmentId, dogIds });
   }
 
   /** Trainer ändert den Status einer Anmeldung (z. B. von der Warteliste holen). */
   async setParticipantStatus(participantId: string, status: ParticipantStatus) {
-    unwrap(
-      await this.db.from('appointment_participants').update({ status }).eq('id', participantId),
-    );
+    await this.api.op('participants.setStatus', { id: participantId, status });
   }
 }

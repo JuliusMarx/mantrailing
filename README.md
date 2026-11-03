@@ -12,50 +12,43 @@ Mobile Web-App (PWA) für Mantrailing-Hundeschulen: Trails auf der Karte einzeic
 | --- | --- |
 | Frontend | Angular 21, Ionic 8 (standalone), Signals, PWA |
 | Karte | MapLibre GL, OpenFreeMap (Vektor), OpenTopoMap, Esri-Satellit |
-| Routing | OpenRouteService `foot-hiking` über die Edge Function `route-proxy` |
+| Backend | Netlify Functions (`netlify/functions/api.mts`) mit eigenem Login (scrypt + signierte Tokens) |
+| Datenbank | Netlify Database (Postgres) mit Row-Level-Security; Migrationen in `netlify/database/migrations` |
+| Routing | Valhalla der FOSSGIS (`valhalla1.openstreetmap.de`, Profil pedestrian, ohne API-Key) |
 | Ortssuche | Nominatim (OpenStreetMap) |
-| Backend | Supabase: Auth, Postgres, RLS, RPCs, Edge Functions |
-| Hosting | Netlify (`netlify.toml`) |
 
-## Einrichtung
-
-1. **Supabase-Projekt anlegen** auf [supabase.com](https://supabase.com).
-2. **Datenbank:** Den Inhalt von `supabase/migrations/20261103000000_schema.sql` im SQL-Editor ausführen. Alternativ mit der Supabase-CLI: `supabase link` und danach `supabase db push`.
-3. **Testdaten (optional):** `supabase/seed.sql` im SQL-Editor ausführen. Die Seed-Datei legt Test-Logins an, die Zugangsdaten stehen am Anfang der Datei.
-4. **Auth-Einstellungen:** Unter Authentication → URL Configuration die Site-URL (z. B. die Netlify-URL) und `http://localhost:4200` als Redirect-URL eintragen.
-5. **Routing:**
-   - Einen kostenlosen API-Key bei [openrouteservice.org](https://openrouteservice.org/dev/#/signup) holen.
-   - Den Key als Secret setzen: `supabase secrets set ORS_API_KEY=...`
-   - Die Funktion deployen: `supabase functions deploy route-proxy`
-   - Ohne Routing funktioniert der Editor trotzdem. Abschnitte werden dann als Luftlinie gezeichnet.
-6. **Frontend:** In `src/environments/environment.ts` die Werte `supabaseUrl` und `supabaseAnonKey` eintragen (Project Settings → API).
+Keine externen Konten nötig: Netlify legt die Datenbank beim Deploy an und führt die Migrationen aus.
 
 ## Entwicklung
 
 ```bash
 npm install
-npm start            # http://localhost:4200
+npm run dev          # API mit lokaler Datenbank (PGlite, .data/) + App auf http://localhost:4310
 npm test             # Unit-Tests (Vitest): Editor-Logik, GPS-Aufnahme, Geo-Funktionen
-npm run test:db      # Datenbank-Tests (PGlite): RLS, Anmeldung/Warteliste, Umfragen, Teilen
+npm run test:db      # Datenbank- und API-Tests gegen PGlite
 npm run build        # Produktions-Build nach dist/mantrailing/browser
 ```
 
-Im Entwicklungsmodus lässt sich der Trail-Editor unter `/dev/editor` ohne Login ausprobieren. Speichern geht dort nicht.
+Lokal werden beim ersten Start Testdaten angelegt; die Test-Logins stehen in `server/seed.mjs`.
+Im Entwicklungsmodus lässt sich der Trail-Editor unter `/dev/editor` ohne Login ausprobieren.
+
+**Login:** E-Mail und Passwort, ohne Bestätigungsmail. Vergessene Passwörter setzt eine Trainerin oder ein Trainer unter „Kunden“ zurück (die App zeigt ein Einmal-Passwort an).
 
 ## Aufbau
 
 ```
 src/app/
-  core/                    Supabase-Client, Auth, Guards, Modelle, Geo-Funktionen, Routing
+  core/                    API-Client, Auth, Guards, Modelle, Geo-Funktionen, Routing
   core/data/               Datendienste je Bereich (Hunde, Termine, Umfragen, Trails, Schule)
   shared/map/              MapLibre-Komponente (Linien und Marker deklarativ)
   shared/trail-view/       Trail-Ansicht mit Live-Position und Abweichungswarnung
   features/trails/editor/  Trail-Editor: TrailEditorStore (Logik), TrailRecorder (GPS)
   features/…               Seiten: auth, appointments, polls, trails, dogs, customers, account
-supabase/
-  migrations/              Schema, RLS-Policies, Trigger, RPCs
-  functions/route-proxy/   Edge Function für OpenRouteService
-  tests/                   Datenbank-Tests
+netlify/
+  functions/api.mts        API-Einstieg (/api/*)
+  lib/                     Handler, Login, Datenoperationen (ops.mts), Routing
+  database/migrations/     Schema, RLS-Policies, Trigger, RPCs
+server/                    Lokale Entwicklung (PGlite), Testdaten, DB-/API-Tests
 ```
 
 ### Datenmodell (Kurzfassung)
@@ -74,6 +67,6 @@ supabase/
 - Trainingstagebuch und Statistik pro Hund
 - GPX-Import und -Export
 - Wiederkehrende Termine, iCal-Export
-- E-Mail- und Push-Benachrichtigungen
+- E-Mail (Bestätigung, Passwort vergessen) und Push-Benachrichtigungen
 - 10er-Karten
 - Offline-Kartencache

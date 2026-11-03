@@ -120,7 +120,7 @@ export class PollDetailPage implements ViewWillEnter {
 
   private async loadResponses(options: PollOption[]) {
     if (!options.length) return;
-    const { votes, dogs } = await this.polls.responses(this.id(), options.map((o) => o.id));
+    const { votes, dogs } = await this.polls.responses(this.id());
     const dogsByUser = new Map<string, string[]>();
     for (const d of dogs as PollDog[]) {
       dogsByUser.set(d.user_id, [...(dogsByUser.get(d.user_id) ?? []), d.dogs?.name ?? '?']);

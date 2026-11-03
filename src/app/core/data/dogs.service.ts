@@ -1,33 +1,26 @@
 import { inject, Injectable } from '@angular/core';
+import { ApiService } from '../api.service';
 import { Dog } from '../models';
-import { SupabaseService, unwrap } from '../supabase.service';
-import { AuthService } from '../auth.service';
 
 export type DogInput = Pick<Dog, 'name' | 'breed' | 'birth_date' | 'notes'>;
 
 @Injectable({ providedIn: 'root' })
 export class DogsService {
-  private readonly db = inject(SupabaseService).client;
-  private readonly auth = inject(AuthService);
+  private readonly api = inject(ApiService);
 
-  async mine(): Promise<Dog[]> {
-    return unwrap(
-      await this.db.from('dogs').select('*').eq('owner_id', this.auth.userId()!).order('name'),
-    ) as Dog[];
+  mine() {
+    return this.api.op<Dog[]>('dogs.mine');
   }
 
-  async get(id: string): Promise<Dog | null> {
-    return unwrap(await this.db.from('dogs').select('*').eq('id', id).maybeSingle()) as Dog | null;
+  get(id: string) {
+    return this.api.op<Dog | null>('dogs.get', { id });
   }
 
-  async save(input: DogInput, id?: string): Promise<Dog> {
-    const query = id
-      ? this.db.from('dogs').update(input).eq('id', id)
-      : this.db.from('dogs').insert(input);
-    return unwrap(await query.select().single()) as Dog;
+  save(input: DogInput, id?: string) {
+    return this.api.op<Dog>('dogs.save', { id, input });
   }
 
   async remove(id: string) {
-    unwrap(await this.db.from('dogs').delete().eq('id', id));
+    await this.api.op('dogs.remove', { id });
   }
 }

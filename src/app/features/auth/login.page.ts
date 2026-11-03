@@ -13,8 +13,7 @@ import {
 import { addIcons } from 'ionicons';
 import { pawOutline } from 'ionicons/icons';
 import { AuthService } from '../../core/auth.service';
-import { isSupabaseConfigured } from '../../core/supabase.service';
-import { errorMessage, UiService } from '../../core/ui.service';
+import { errorMessage } from '../../core/ui.service';
 
 @Component({
   selector: 'app-login',
@@ -28,13 +27,6 @@ import { errorMessage, UiService } from '../../core/ui.service';
           <h1>Mantrailing</h1>
           <p class="muted">Trails planen, Termine finden.</p>
         </div>
-
-        @if (!configured) {
-          <ion-note color="danger" class="config-hint">
-            Supabase ist noch nicht konfiguriert. Trage URL und Anon-Key in
-            <code>src/environments/environment.ts</code> ein.
-          </ion-note>
-        }
 
         <form (ngSubmit)="submit()">
           <ion-list lines="none">
@@ -69,10 +61,10 @@ import { errorMessage, UiService } from '../../core/ui.service';
               Anmelden
             }
           </ion-button>
-          <ion-button expand="block" fill="clear" (click)="magicLink()" [disabled]="busy() || !email">
-            Login-Link per E-Mail
-          </ion-button>
         </form>
+        <p class="muted hint">
+          Passwort vergessen? Deine Trainerin oder dein Trainer kann es in der App zurücksetzen.
+        </p>
 
         <p class="switch">
           Neu hier? <a routerLink="/registrieren">Konto erstellen</a>
@@ -84,9 +76,7 @@ import { errorMessage, UiService } from '../../core/ui.service';
 export class LoginPage {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
-  private readonly ui = inject(UiService);
 
-  protected readonly configured = isSupabaseConfigured;
   protected email = '';
   protected password = '';
   protected readonly busy = signal(false);
@@ -103,19 +93,6 @@ export class LoginPage {
     try {
       await this.auth.signIn(this.email.trim(), this.password);
       await this.router.navigateByUrl('/app', { replaceUrl: true });
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    } finally {
-      this.busy.set(false);
-    }
-  }
-
-  async magicLink() {
-    this.busy.set(true);
-    this.error.set('');
-    try {
-      await this.auth.sendMagicLink(this.email.trim());
-      await this.ui.toast('Link verschickt – schau in dein Postfach.', 'success');
     } catch (err) {
       this.error.set(errorMessage(err));
     } finally {

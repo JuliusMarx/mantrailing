@@ -1,32 +1,8 @@
-// Datenbank-Tests gegen ein In-Memory-Postgres (PGlite).
-// Ein kleiner Supabase-Ersatz stellt auth.users, auth.uid() und die Rollen anon/authenticated bereit.
+// Datenbank-Tests (Policies, Trigger, RPCs) direkt in SQL gegen PGlite.
 // Start: npm run test:db
-import { test, before } from 'node:test';
-import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { PGlite } from '@electric-sql/pglite';
-
-const here = dirname(fileURLToPath(import.meta.url));
-const migrationsDir = join(here, '..', 'migrations');
-
-const SUPABASE_STUB = `
-  create role anon nologin;
-  create role authenticated nologin;
-  create schema auth;
-  create table auth.users (
-    id uuid primary key default gen_random_uuid(),
-    email text unique,
-    raw_user_meta_data jsonb default '{}'
-  );
-  create function auth.uid() returns uuid language sql stable as $$
-    select nullif(nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub', '')::uuid
-  $$;
-  grant usage on schema auth to anon, authenticated;
-  grant execute on function auth.uid() to anon, authenticated;
-  grant usage on schema public to anon, authenticated;
-`;
+import { test, before } from "node:test";
+import assert from "node:assert/strict";
+import { openPglite } from "./pglite-db.mjs";
 
 let db;
 const ids = {};
@@ -53,7 +29,7 @@ async function one(sql, params = []) {
 async function createUser(email, name) {
   await asAdmin();
   const r = await one(
-    `insert into auth.users (email, raw_user_meta_data) values ($1, $2) returning id`,
+    `insert into auth.users (email, password_hash, raw_user_meta_data) values ($1, 'x', $2) returning id`,
     [email, { full_name: name }],
   );
   return r.id;
@@ -64,11 +40,7 @@ async function addDog(owner, name) {
 }
 
 before(async () => {
-  db = new PGlite();
-  await db.exec(SUPABASE_STUB);
-  for (const file of readdirSync(migrationsDir).sort()) {
-    await db.exec(readFileSync(join(migrationsDir, file), 'utf8'));
-  }
+  db = await openPglite();
 
   ids.trainer = await createUser('trainer@test.local', 'Tina Trainer');
   ids.alice = await createUser('alice@test.local', 'Alice Kundin');

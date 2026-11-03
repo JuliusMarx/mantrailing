@@ -1,10 +1,14 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
-import { Session } from '@supabase/supabase-js';
+import { ApiError, ApiService } from './api.service';
 import { Membership, Profile } from './models';
-import { SupabaseService, unwrap } from './supabase.service';
 
 const SCHOOL_KEY = 'mantrailing.schoolId';
 const PENDING_INVITE_KEY = 'mantrailing.pendingInvite';
+
+interface User {
+  id: string;
+  email: string;
+}
 
 function readStorage(key: string): string | null {
   try {
@@ -24,15 +28,17 @@ function writeStorage(key: string, value: string | null) {
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private readonly supabase = inject(SupabaseService).client;
+  private readonly api = inject(ApiService);
 
-  readonly session = signal<Session | null>(null);
+  readonly user = signal<User | null>(null);
   readonly profile = signal<Profile | null>(null);
   readonly memberships = signal<Membership[]>([]);
   private readonly selectedSchoolId = signal<string | null>(readStorage(SCHOOL_KEY));
 
-  readonly userId = computed(() => this.session()?.user.id ?? null);
-  readonly email = computed(() => this.session()?.user.email ?? null);
+  /** Angemeldet? (Name wie früher, wird in Templates und Guards benutzt.) */
+  readonly session = computed(() => this.user());
+  readonly userId = computed(() => this.user()?.id ?? null);
+  readonly email = computed(() => this.user()?.email ?? null);
   readonly currentMembership = computed(() => {
     const all = this.memberships();
     return all.find((m) => m.school_id === this.selectedSchoolId()) ?? all[0] ?? null;
@@ -49,46 +55,43 @@ export class AuthService {
   }
 
   private async init() {
-    const { data } = await this.supabase.auth.getSession();
-    await this.applySession(data.session);
-    this.supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
-        // außerhalb des Auth-Callbacks laden (Supabase empfiehlt, hier nicht zu awaiten)
-        setTimeout(() => this.applySession(session));
-      } else {
-        this.session.set(session);
-      }
-    });
+    if (!this.api.token()) return;
+    try {
+      const { user } = await this.api.post<{ user: User }>('/auth/me');
+      this.user.set(user);
+      await this.reload();
+    } catch (err) {
+      // Offline: Token behalten, aber nicht als angemeldet gelten
+      if (err instanceof ApiError && err.status === 401) this.clear();
+    }
   }
 
-  /** Wartet, bis die gespeicherte Session geladen ist (für Guards). */
+  /** Wartet, bis die gespeicherte Anmeldung geprüft ist (für Guards). */
   whenReady() {
     return this.ready;
   }
 
-  private async applySession(session: Session | null) {
-    this.session.set(session);
-    if (!session) {
-      this.profile.set(null);
-      this.memberships.set([]);
-      return;
-    }
-    await this.reload();
+  async reload() {
+    if (!this.user()) return;
+    const [profile, memberships] = await Promise.all([
+      this.api.op<Profile | null>('profile.me'),
+      this.api.op<Membership[]>('memberships.mine'),
+    ]);
+    this.profile.set(profile);
+    this.memberships.set(memberships);
   }
 
-  async reload() {
-    const uid = this.userId();
-    if (!uid) return;
-    const [profile, memberships] = await Promise.all([
-      this.supabase.from('profiles').select('id, full_name, phone').eq('id', uid).maybeSingle(),
-      this.supabase
-        .from('memberships')
-        .select('user_id, school_id, role, schools(id, name)')
-        .eq('user_id', uid)
-        .order('created_at'),
-    ]);
-    this.profile.set(unwrap(profile));
-    this.memberships.set(unwrap(memberships) as unknown as Membership[]);
+  private clear() {
+    this.api.setToken(null);
+    this.user.set(null);
+    this.profile.set(null);
+    this.memberships.set([]);
+  }
+
+  private async applyLogin(res: { token: string; user: User }) {
+    this.api.setToken(res.token);
+    this.user.set(res.user);
+    await this.reload();
   }
 
   selectSchool(schoolId: string) {
@@ -97,51 +100,40 @@ export class AuthService {
   }
 
   async signIn(email: string, password: string) {
-    const { error } = await this.supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-    await this.applySession((await this.supabase.auth.getSession()).data.session);
+    await this.applyLogin(await this.api.post('/auth/login', { email, password }));
   }
 
   async signUp(email: string, password: string, fullName: string) {
-    const { data, error } = await this.supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName }, emailRedirectTo: location.origin },
-    });
-    if (error) throw error;
-    if (data.session) await this.applySession(data.session);
-    return { needsConfirmation: !data.session };
-  }
-
-  async sendMagicLink(email: string) {
-    const { error } = await this.supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: location.origin, shouldCreateUser: false },
-    });
-    if (error) throw error;
+    await this.applyLogin(
+      await this.api.post('/auth/signup', { email, password, full_name: fullName }),
+    );
   }
 
   async signOut() {
-    await this.supabase.auth.signOut();
-    await this.applySession(null);
+    this.clear();
+  }
+
+  async changePassword(currentPassword: string, newPassword: string) {
+    await this.api.post('/auth/password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
   }
 
   async updateProfile(changes: Partial<Pick<Profile, 'full_name' | 'phone'>>) {
-    const uid = this.userId();
-    if (!uid) return;
-    unwrap(await this.supabase.from('profiles').update(changes).eq('id', uid));
+    await this.api.op('profile.update', { input: changes });
     await this.reload();
   }
 
   async createSchool(name: string) {
-    const id = unwrap(await this.supabase.rpc('create_school', { p_name: name })) as string;
+    const id = await this.api.op<string>('school.create', { name });
     await this.reload();
     this.selectSchool(id);
     return id;
   }
 
   async acceptInvitation(token: string) {
-    const schoolId = unwrap(await this.supabase.rpc('accept_invitation', { p_token: token })) as string;
+    const schoolId = await this.api.op<string>('invitation.accept', { token });
     this.setPendingInvite(null);
     await this.reload();
     this.selectSchool(schoolId);
@@ -149,8 +141,8 @@ export class AuthService {
   }
 
   async deleteAccount() {
-    unwrap(await this.supabase.rpc('delete_my_account'));
-    await this.signOut();
+    await this.api.op('account.delete');
+    this.clear();
   }
 
   pendingInvite() {

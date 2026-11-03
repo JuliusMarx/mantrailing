@@ -1,5 +1,54 @@
 -- Mantrailing: Schema, Row-Level-Security und RPCs.
 -- Mehrere Hundeschulen (Mandanten); Rollen pro Schule: trainer / customer.
+--
+-- Die API (netlify/functions) führt jede Anfrage in einer Transaktion als Rolle
+-- "authenticated" bzw. "anon" aus und setzt request.jwt.claims; auth.uid() liest daraus
+-- die User-ID. Damit greifen die Policies unten genauso wie bei Supabase.
+
+-- ---------------------------------------------------------------------------
+-- Rollen und Auth
+-- ---------------------------------------------------------------------------
+
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'anon') then
+    create role anon nologin;
+  end if;
+  if not exists (select 1 from pg_roles where rolname = 'authenticated') then
+    create role authenticated nologin;
+  end if;
+end;
+$$;
+
+-- Die API-Verbindung muss in diese Rollen wechseln dürfen.
+grant anon, authenticated to current_user;
+
+create schema auth;
+
+create table auth.users (
+  id uuid primary key default gen_random_uuid(),
+  email text not null unique check (email = lower(email)),
+  password_hash text not null,
+  raw_user_meta_data jsonb not null default '{}',
+  created_at timestamptz not null default now()
+);
+
+-- Schlüssel zum Signieren der Login-Tokens, einmalig zufällig erzeugt.
+create table auth.secrets (
+  name text primary key,
+  value text not null
+);
+insert into auth.secrets (name, value)
+values ('token_secret', replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''));
+
+create function auth.uid() returns uuid
+language sql stable as $$
+  select nullif(nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub', '')::uuid
+$$;
+
+grant usage on schema auth to anon, authenticated;
+grant execute on function auth.uid() to anon, authenticated;
+grant usage on schema public to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Tabellen

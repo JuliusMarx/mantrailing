@@ -20,7 +20,7 @@ import {
   ViewWillEnter,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { businessOutline, logOutOutline, pawOutline, trashOutline } from 'ionicons/icons';
+import { businessOutline, keyOutline, logOutOutline, pawOutline, trashOutline } from 'ionicons/icons';
 import { AuthService } from '../../core/auth.service';
 import { SchoolService } from '../../core/data/school.service';
 import { UiService } from '../../core/ui.service';
@@ -109,6 +109,9 @@ import { UiService } from '../../core/ui.service';
       </ion-list>
 
       <div class="ion-padding">
+        <ion-button expand="block" fill="outline" (click)="changePassword()">
+          <ion-icon slot="start" name="key-outline" />Passwort ändern
+        </ion-button>
         <ion-button expand="block" fill="outline" (click)="logout()">
           <ion-icon slot="start" name="log-out-outline" />Abmelden
         </ion-button>
@@ -131,7 +134,7 @@ export class AccountPage implements ViewWillEnter {
   private readonly original = signal({ name: '', phone: '' });
 
   constructor() {
-    addIcons({ pawOutline, logOutOutline, trashOutline, businessOutline });
+    addIcons({ pawOutline, logOutOutline, trashOutline, businessOutline, keyOutline });
   }
 
   ionViewWillEnter() {
@@ -187,6 +190,29 @@ export class AccountPage implements ViewWillEnter {
     if (!name) return;
     const id = await this.ui.run(() => this.auth.createSchool(name));
     if (id) await this.router.navigateByUrl('/app/termine', { replaceUrl: true });
+  }
+
+  async changePassword() {
+    const alert = await this.alerts.create({
+      header: 'Passwort ändern',
+      inputs: [
+        { name: 'current', type: 'password', placeholder: 'Aktuelles Passwort', attributes: { autocomplete: 'current-password' } },
+        { name: 'next', type: 'password', placeholder: 'Neues Passwort (mind. 8 Zeichen)', attributes: { autocomplete: 'new-password' } },
+      ],
+      buttons: [
+        { text: 'Abbrechen', role: 'cancel' },
+        { text: 'Ändern', role: 'confirm' },
+      ],
+    });
+    await alert.present();
+    const { role, data } = await alert.onDidDismiss();
+    if (role !== 'confirm') return;
+    const { current, next } = data?.values ?? {};
+    const ok = await this.ui.run(async () => {
+      await this.auth.changePassword(current ?? '', next ?? '');
+      return true;
+    });
+    if (ok) await this.ui.toast('Passwort geändert', 'success');
   }
 
   async logout() {
