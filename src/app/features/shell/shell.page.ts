@@ -26,6 +26,7 @@ import {
   pawOutline,
   peopleOutline,
   personCircleOutline,
+  shieldCheckmarkOutline,
 } from 'ionicons/icons';
 import { AuthService } from '../../core/auth.service';
 
@@ -162,6 +163,7 @@ export class ShellPage {
       ...(trainer ? [{ label: 'Kund:innen', url: '/app/kunden', icon: 'people-outline' }] : []),
       { label: 'Meine Hunde', url: '/app/hunde', icon: 'paw-outline' },
       { label: 'Konto', url: '/app/konto', icon: 'person-circle-outline' },
+      ...(this.auth.isAdmin() ? [{ label: 'Backoffice', url: '/admin', icon: 'shield-checkmark-outline' }] : []),
     ];
   });
 
@@ -174,6 +176,7 @@ export class ShellPage {
       personCircleOutline,
       logOutOutline,
       businessOutline,
+      shieldCheckmarkOutline,
     });
   }
 

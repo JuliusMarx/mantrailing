@@ -17,7 +17,8 @@ export const memberGuard: CanActivateFn = async () => {
   if (!auth.session()) return router.parseUrl('/login');
   const join = auth.pendingJoin();
   if (join) return router.parseUrl(`/beitreten/${join}`);
-  return auth.memberships().length ? true : router.parseUrl('/willkommen');
+  if (auth.memberships().length) return true;
+  return router.parseUrl(auth.isAdmin() ? '/admin' : '/willkommen');
 };
 
 export const trainerGuard: CanActivateFn = async () => {
@@ -32,4 +33,12 @@ export const guestGuard: CanActivateFn = async () => {
   const router = inject(Router);
   await auth.whenReady();
   return auth.session() ? router.parseUrl('/app') : true;
+};
+
+export const adminGuard: CanActivateFn = async () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  await auth.whenReady();
+  if (!auth.session()) return router.parseUrl('/login');
+  return auth.isAdmin() ? true : router.parseUrl('/app');
 };

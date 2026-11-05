@@ -33,6 +33,8 @@ export class AuthService {
   readonly user = signal<User | null>(null);
   readonly profile = signal<Profile | null>(null);
   readonly memberships = signal<Membership[]>([]);
+  /** Plattform-Admin (Backoffice). */
+  readonly isAdmin = signal(false);
   private readonly selectedSchoolId = signal<string | null>(readStorage(SCHOOL_KEY));
 
   /** Angemeldet? (Name wie früher, wird in Templates und Guards benutzt.) */
@@ -57,8 +59,9 @@ export class AuthService {
   private async init() {
     if (!this.api.token()) return;
     try {
-      const { user } = await this.api.post<{ user: User }>('/auth/me');
+      const { user, is_admin } = await this.api.post<{ user: User; is_admin: boolean }>('/auth/me');
       this.user.set(user);
+      this.isAdmin.set(is_admin);
       await this.reload();
     } catch (err) {
       // Offline: Token behalten, aber nicht als angemeldet gelten
@@ -86,12 +89,17 @@ export class AuthService {
     this.user.set(null);
     this.profile.set(null);
     this.memberships.set([]);
+    this.isAdmin.set(false);
   }
 
   private async applyLogin(res: { token: string; user: User }) {
     this.api.setToken(res.token);
     this.user.set(res.user);
-    await this.reload();
+    const [{ is_admin }] = await Promise.all([
+      this.api.post<{ is_admin: boolean }>('/auth/me'),
+      this.reload(),
+    ]);
+    this.isAdmin.set(is_admin);
   }
 
   selectSchool(schoolId: string) {
@@ -139,6 +147,12 @@ export class AuthService {
     await this.reload();
     this.selectSchool(schoolId);
     return schoolId;
+  }
+
+  /** Eigene Hundeschule löschen (nur Trainer:in, Name zur Bestätigung). */
+  async deleteSchool(confirmName: string) {
+    await this.api.op('school.delete', { schoolId: this.schoolId(), confirmName });
+    await this.reload();
   }
 
   async deleteAccount() {

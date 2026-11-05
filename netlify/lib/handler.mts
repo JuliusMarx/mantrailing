@@ -1,6 +1,7 @@
 // HTTP-Schicht der API: /api/auth/*, /api/op/:name, /api/route, /api/health.
 import { changePassword, HttpError, resetPassword, signIn, signUp, verifyToken } from './auth.mts';
 import { asUser, type AuthUser, type Db } from './db.mts';
+import { ADMIN_OPS } from './admin-ops.mts';
 import { OPS } from './ops.mts';
 import { route } from './routing.mts';
 
@@ -55,6 +56,13 @@ export function createHandler(db: Db) {
     return user;
   }
 
+  async function isAdmin(user: AuthUser): Promise<boolean> {
+    const res = await db.transaction((tx) =>
+      tx.query(`select 1 from platform_admins where user_id = $1`, [user.id]),
+    );
+    return res.rows.length > 0;
+  }
+
   return async function handle(req: Request): Promise<Response> {
     const path = new URL(req.url).pathname.replace(/^\/api/, '').replace(/\/+$/, '');
     try {
@@ -70,8 +78,10 @@ export function createHandler(db: Db) {
           return json(await signUp(db, body));
         case '/auth/login':
           return json(await signIn(db, body));
-        case '/auth/me':
-          return json({ user: await requireUser(req) });
+        case '/auth/me': {
+          const user = await requireUser(req);
+          return json({ user, is_admin: await isAdmin(user) });
+        }
         case '/auth/password':
           return json(await changePassword(db, await requireUser(req), body));
         case '/auth/reset-password':
@@ -79,6 +89,22 @@ export function createHandler(db: Db) {
         case '/route':
           await requireUser(req);
           return json(await route(body));
+      }
+
+      // Backoffice: nur für Plattform-Admins, ohne Row-Level-Security
+      const adminMatch = /^\/admin\/([a-zA-Z.]+)$/.exec(path);
+      if (adminMatch) {
+        const adminOp = ADMIN_OPS[adminMatch[1]];
+        if (!adminOp) throw new HttpError(404, 'Unbekannte Operation');
+        const user = await requireUser(req);
+        if (!(await isAdmin(user))) throw new HttpError(403, 'Keine Berechtigung');
+        const result = await db.transaction(async (tx) => {
+          await tx.query(`select set_config('request.jwt.claims', $1, true)`, [
+            JSON.stringify({ sub: user.id, email: user.email, role: 'admin' }),
+          ]);
+          return adminOp(tx, body, user);
+        });
+        return json({ data: result ?? null });
       }
 
       const match = /^\/op\/([a-zA-Z.]+)$/.exec(path);

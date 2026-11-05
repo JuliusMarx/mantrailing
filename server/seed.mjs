@@ -4,6 +4,7 @@
 //   trainer@mantrailing.test  – Trainerin der "Spürnasen Mantrailing"
 //   kunde@mantrailing.test    – Kundin mit den Hunden Luna und Balu
 //   kunde2@mantrailing.test   – Kunde mit dem Hund Rex
+//   admin-7f3k9@mantrailing.app – Plattform-Admin (Backoffice)
 
 export const TEST_PASSWORD = 'Trail-Test-2026!';
 export const TEST_USERS = {
@@ -11,6 +12,8 @@ export const TEST_USERS = {
   kunde: { email: 'kunde@mantrailing.test', full_name: 'Karla Kundin' },
   kunde2: { email: 'kunde2@mantrailing.test', full_name: 'Konrad Kunde' },
 };
+
+export const TEST_ADMIN = { email: 'admin-7f3k9@mantrailing.app', full_name: 'Backoffice' };
 
 /** Kleiner API-Client gegen den Handler (ohne HTTP). */
 export function client(handle, token = null) {
@@ -48,7 +51,17 @@ const day = (offset, hour, minute = 0) => {
   return d.toISOString();
 };
 
+/** Admin-Konto anlegen, falls es fehlt (wird über die Migration automatisch Admin). */
+async function ensureAdmin(handle) {
+  try {
+    await client(handle).post('/auth/login', { email: TEST_ADMIN.email, password: TEST_PASSWORD });
+  } catch {
+    await client(handle).post('/auth/signup', { ...TEST_ADMIN, password: TEST_PASSWORD });
+  }
+}
+
 export async function seedIfEmpty(handle) {
+  await ensureAdmin(handle);
   try {
     await client(handle).post('/auth/login', { email: TEST_USERS.trainer.email, password: TEST_PASSWORD });
     return; // schon vorhanden

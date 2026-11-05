@@ -173,6 +173,11 @@ export const OPS: Record<string, Op> = {
     },
   },
 
+  /** Trainer:in löscht die eigene Schule (Name zur Bestätigung). */
+  'school.delete': {
+    run: (tx, p) => all(tx, `select delete_school($1, $2)`, [uuid(p, 'schoolId'), str(p, 'confirmName')]),
+  },
+
   // Beitrittslink der Schule
   'school.joinInfo': {
     anon: true,

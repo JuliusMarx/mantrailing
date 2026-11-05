@@ -32,6 +32,8 @@ npm run build        # Produktions-Build nach dist/mantrailing/browser
 Lokal werden beim ersten Start Testdaten angelegt; die Test-Logins stehen in `server/seed.mjs`.
 Im Entwicklungsmodus lässt sich der Trail-Editor unter `/dev/editor` ohne Login ausprobieren.
 
+**Backoffice:** Das Konto `admin-7f3k9@mantrailing.app` wird bei der Registrierung automatisch Admin (nur solange es noch keinen Admin gibt). Admins sehen im Menü „Backoffice“ und können dort alle Hundeschulen, Nutzer:innen und Hunde verwalten.
+
 **Login:** E-Mail und Passwort, ohne Bestätigungsmail. Kund:innen treten über den Beitrittslink der Schule bei (Trainer:in → „Kunden“ → Personen-Symbol). Vergessene Passwörter setzt eine Trainerin oder ein Trainer unter „Kunden“ zurück (die App zeigt ein Einmal-Passwort an).
 
 ## Aufbau

@@ -4,7 +4,7 @@ import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHandler } from '../netlify/lib/handler.mts';
 import { openPglite, pgliteDb } from './pglite-db.mjs';
-import { client, seedIfEmpty, TEST_PASSWORD, TEST_USERS } from './seed.mjs';
+import { client, seedIfEmpty, TEST_ADMIN, TEST_PASSWORD, TEST_USERS } from './seed.mjs';
 
 let handle;
 const api = {};
@@ -189,4 +189,83 @@ test('Konto löschen: Token danach ungültig', async () => {
   const tmp = client(handle, token);
   await tmp.op('account.delete');
   await assert.rejects(tmp.op('profile.me'), (e) => e.status === 401);
+});
+
+test('Backoffice: nur Admins, Übersicht und Suche', async () => {
+  const { token, ...me } = await client(handle).post('/auth/login', { email: TEST_ADMIN.email, password: TEST_PASSWORD });
+  const admin = client(handle, token);
+  assert.equal((await admin.post('/auth/me')).is_admin, true);
+  assert.equal((await api.trainer.post('/auth/me')).is_admin, false);
+  await assert.rejects(api.trainer.post('/admin/stats'), (e) => e.status === 403);
+  await assert.rejects(api.anon.post('/admin/stats'), (e) => e.status === 401);
+
+  const stats = (await admin.post('/admin/stats')).data;
+  assert.ok(stats.schools >= 1 && stats.users >= 4 && stats.dogs >= 3);
+
+  const schools = (await admin.post('/admin/schools', { q: 'spür' })).data;
+  assert.equal(schools.length, 1);
+  assert.equal(schools[0].trainer_names, 'Tina Trainerin');
+  const users = (await admin.post('/admin/users', { q: 'karla' })).data;
+  assert.equal(users.length, 1);
+  assert.equal(users[0].email, TEST_USERS.kunde.email);
+  const dogs = (await admin.post('/admin/dogs', { q: 'beagle' })).data;
+  assert.equal(dogs[0].name, 'Balu');
+  assert.equal(dogs[0].owner_name, 'Karla Kundin');
+  assert.ok(me.user.id);
+});
+
+test('Backoffice: Nutzer, Hunde und Schulen bearbeiten und löschen', async () => {
+  const { token, user: meUser } = await client(handle).post('/auth/login', { email: TEST_ADMIN.email, password: TEST_PASSWORD });
+  const admin = client(handle, token);
+
+  // Nutzer anlegen (Registrierung), im Backoffice bearbeiten, Passwort zurücksetzen
+  const signup = await client(handle).post('/auth/signup', { email: 'bo@test.local', password: 'langes-passwort', full_name: 'Bo' });
+  await admin.post('/admin/user.update', { id: signup.user.id, full_name: 'Bo Backoffice', phone: '0170', email: 'bo2@test.local' });
+  const detail = (await admin.post('/admin/user', { id: signup.user.id })).data;
+  assert.equal(detail.user.full_name, 'Bo Backoffice');
+  assert.equal(detail.user.email, 'bo2@test.local');
+  const { password } = (await admin.post('/admin/user.resetPassword', { id: signup.user.id })).data;
+  const bo = client(handle, (await client(handle).post('/auth/login', { email: 'bo2@test.local', password })).token);
+
+  // Schule: Mitglied per E-Mail hinzufügen, Rolle ändern
+  const schoolId = await bo.op('school.create', { name: 'Bo-Schule' });
+  await admin.post('/admin/school.addMember', { id: schoolId, email: TEST_USERS.kunde2.email, role: 'customer' });
+  await admin.post('/admin/school.setRole', { id: schoolId, userId: signup.user.id, role: 'customer' });
+  const school = (await admin.post('/admin/school', { id: schoolId })).data;
+  assert.equal(school.members.length, 2);
+  assert.ok(school.members.every((m) => m.role === 'customer'));
+  await admin.post('/admin/school.rename', { id: schoolId, name: 'Bo-Hundeschule' });
+
+  // Hund des Kunden bearbeiten und löschen
+  const dog = await bo.op('dogs.save', { input: { name: 'Fips' } });
+  const saved = (await admin.post('/admin/dog.save', { id: dog.id, input: { name: 'Fips II', breed: 'Mops' } })).data;
+  assert.equal(saved.breed, 'Mops');
+  await admin.post('/admin/dog.delete', { id: dog.id });
+  assert.equal((await bo.op('dogs.mine')).length, 0);
+
+  // Admin-Rechte vergeben/entziehen, letzter Admin bleibt geschützt
+  await assert.rejects(admin.post('/admin/user.setAdmin', { id: meUser.id, admin: false }), /einzige Admin/);
+  await admin.post('/admin/user.setAdmin', { id: signup.user.id, admin: true });
+  assert.equal((await bo.post('/auth/me')).is_admin, true);
+  await admin.post('/admin/user.setAdmin', { id: signup.user.id, admin: false });
+  await assert.rejects(bo.post('/admin/stats'), (e) => e.status === 403);
+
+  // Schule löschen, dann Konto löschen
+  await admin.post('/admin/school.delete', { id: schoolId });
+  assert.equal((await admin.post('/admin/school', { id: schoolId })).data, null);
+  await assert.rejects(admin.post('/admin/user.delete', { id: meUser.id }), /eigenes Konto/);
+  await admin.post('/admin/user.delete', { id: signup.user.id });
+  await assert.rejects(bo.op('profile.me'), (e) => e.status === 401);
+});
+
+test('Trainer:in löscht die eigene Schule nur mit richtigem Namen', async () => {
+  const { token } = await client(handle).post('/auth/signup', { email: 'del@test.local', password: 'langes-passwort', full_name: 'Del' });
+  const owner = client(handle, token);
+  const schoolId = await owner.op('school.create', { name: 'Weg-Schule' });
+  await owner.op('appointments.save', { schoolId, input: { title: 'T', starts_at: new Date(Date.now() + 86400000).toISOString() } });
+  await assert.rejects(api.kunde.op('school.delete', { schoolId, confirmName: 'Weg-Schule' }), /Berechtigung/);
+  await assert.rejects(owner.op('school.delete', { schoolId, confirmName: 'Falsch' }), /stimmt nicht/);
+  await owner.op('school.delete', { schoolId, confirmName: ' weg-schule ' });
+  assert.equal((await owner.op('memberships.mine')).length, 0);
+  assert.equal((await owner.op('profile.me')).full_name, 'Del');
 });

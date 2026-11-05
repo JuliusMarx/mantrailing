@@ -99,6 +99,9 @@ import { UiService } from '../../core/ui.service';
           <ion-item button detail="false" (click)="renameSchool()">
             <ion-label color="primary">Schule umbenennen</ion-label>
           </ion-item>
+          <ion-item button detail="false" (click)="deleteSchool()">
+            <ion-label color="danger">Hundeschule löschen</ion-label>
+          </ion-item>
         }
         <ion-item button detail="false" (click)="createSchool()">
           <ion-label color="primary">Weitere Hundeschule anlegen</ion-label>
@@ -180,6 +183,33 @@ export class AccountPage implements ViewWillEnter {
   async renameSchool() {
     const name = await this.prompt('Schule umbenennen', this.auth.schoolName());
     if (name) await this.ui.run(() => this.school.renameSchool(name));
+  }
+
+  async deleteSchool() {
+    const name = this.auth.schoolName();
+    const alert = await this.alerts.create({
+      header: 'Hundeschule löschen?',
+      message:
+        `Alle Termine, Umfragen und Trails von „${name}“ werden endgültig gelöscht. ` +
+        'Die Konten und Hunde deiner Kund:innen bleiben erhalten. Tippe zur Bestätigung den Namen der Schule ein.',
+      inputs: [{ name: 'value', type: 'text', placeholder: name }],
+      buttons: [
+        { text: 'Abbrechen', role: 'cancel' },
+        { text: 'Endgültig löschen', role: 'confirm', cssClass: 'alert-danger' },
+      ],
+    });
+    await alert.present();
+    const { role, data } = await alert.onDidDismiss();
+    if (role !== 'confirm') return;
+    const done = await this.ui.run(async () => {
+      await this.auth.deleteSchool(data?.values?.value ?? '');
+      return true;
+    });
+    if (!done) return;
+    await this.ui.toast('Hundeschule gelöscht', 'success');
+    await this.router.navigateByUrl(this.auth.memberships().length ? '/app/termine' : '/willkommen', {
+      replaceUrl: true,
+    });
   }
 
   async createSchool() {

@@ -1,6 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { IonButton, IonContent, IonIcon, IonInput, IonList, IonNote } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { pawOutline } from 'ionicons/icons';
@@ -10,7 +10,7 @@ import { UiService } from '../../core/ui.service';
 /** Onboarding für angemeldete Nutzer ohne Schule. */
 @Component({
   selector: 'app-welcome',
-  imports: [FormsModule, IonContent, IonButton, IonIcon, IonInput, IonList, IonNote],
+  imports: [FormsModule, RouterLink, IonContent, IonButton, IonIcon, IonInput, IonList, IonNote],
   styleUrl: './auth.scss',
   template: `
     <ion-content class="ion-padding">
@@ -44,6 +44,9 @@ import { UiService } from '../../core/ui.service';
           </ion-button>
         </div>
 
+        @if (auth.isAdmin()) {
+          <ion-button expand="block" color="dark" routerLink="/admin">Zum Backoffice</ion-button>
+        }
         @if (error()) {
           <ion-note color="danger">{{ error() }}</ion-note>
         }

@@ -1,6 +1,6 @@
 import { isDevMode } from '@angular/core';
 import { Routes } from '@angular/router';
-import { authGuard, guestGuard, memberGuard, trainerGuard } from './core/guards';
+import { adminGuard, authGuard, guestGuard, memberGuard, trainerGuard } from './core/guards';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'app' },
@@ -41,6 +41,25 @@ export const routes: Routes = [
         path: ':id',
         loadComponent: () =>
           import('./features/trails/editor/trail-editor.page').then((m) => m.TrailEditorPage),
+      },
+    ],
+  },
+  {
+    path: 'admin',
+    canActivate: [adminGuard],
+    children: [
+      {
+        path: '',
+        loadComponent: () => import('./features/admin/admin.page').then((m) => m.AdminPage),
+      },
+      {
+        path: 'schulen/:id',
+        loadComponent: () =>
+          import('./features/admin/admin-school.page').then((m) => m.AdminSchoolPage),
+      },
+      {
+        path: 'nutzer/:id',
+        loadComponent: () => import('./features/admin/admin-user.page').then((m) => m.AdminUserPage),
       },
     ],
   },
