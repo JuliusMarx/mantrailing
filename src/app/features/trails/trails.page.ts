@@ -4,8 +4,6 @@ import { RouterLink } from '@angular/router';
 import {
   IonBadge,
   IonContent,
-  IonFab,
-  IonFabButton,
   IonHeader,
   IonIcon,
   IonItem,
@@ -20,6 +18,7 @@ import {
   ViewWillEnter,
   IonMenuButton,
   IonButtons,
+  IonButton,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { add, linkOutline, mapOutline } from 'ionicons/icons';
@@ -34,6 +33,7 @@ import { UiService } from '../../core/ui.service';
   imports: [
     IonMenuButton,
     IonButtons,
+    IonButton,
     DatePipe,
     RouterLink,
     IonHeader,
@@ -45,8 +45,6 @@ import { UiService } from '../../core/ui.service';
     IonLabel,
     IonNote,
     IonIcon,
-    IonFab,
-    IonFabButton,
     IonRefresher,
     IonRefresherContent,
     IonBadge,
@@ -57,6 +55,13 @@ import { UiService } from '../../core/ui.service';
       <ion-toolbar>
         <ion-buttons slot="start"><ion-menu-button /></ion-buttons>
         <ion-title>{{ auth.isTrainer() ? 'Trails' : 'Meine Trails' }}</ion-title>
+        @if (auth.isTrainer()) {
+          <ion-buttons slot="end">
+            <ion-button routerLink="/editor/neu" aria-label="Neuer Trail">
+              <ion-icon slot="icon-only" name="add" />
+            </ion-button>
+          </ion-buttons>
+        }
       </ion-toolbar>
     </ion-header>
     <ion-content>
@@ -74,7 +79,7 @@ import { UiService } from '../../core/ui.service';
         @if (!trails().length) {
           <div class="empty-state">
             <ion-icon name="map-outline" />
-            <p>Noch keine Trails. Tippe auf +, um den ersten Trail auf der Karte einzuzeichnen.</p>
+            <p>Noch keine Trails. Tippe oben rechts auf +, um den ersten Trail auf der Karte einzuzeichnen.</p>
           </div>
         }
         <ion-list>
@@ -91,11 +96,6 @@ import { UiService } from '../../core/ui.service';
             </ion-item>
           }
         </ion-list>
-        <ion-fab slot="fixed" vertical="bottom" horizontal="end">
-          <ion-fab-button routerLink="/editor/neu" aria-label="Neuer Trail">
-            <ion-icon name="add" />
-          </ion-fab-button>
-        </ion-fab>
       } @else {
         @if (!assignments().length) {
           <div class="empty-state">

@@ -3,9 +3,8 @@ import { RouterLink } from '@angular/router';
 import {
   IonAvatar,
   IonButtons,
+  IonButton,
   IonContent,
-  IonFab,
-  IonFabButton,
   IonHeader,
   IonIcon,
   IonItem,
@@ -43,20 +42,24 @@ export function dogAge(birthDate: string | null): string {
     IonToolbar,
     IonTitle,
     IonButtons,
+    IonButton,
     IonContent,
     IonList,
     IonItem,
     IonLabel,
     IonAvatar,
     IonIcon,
-    IonFab,
-    IonFabButton,
   ],
   template: `
     <ion-header>
       <ion-toolbar>
         <ion-buttons slot="start"><ion-menu-button /></ion-buttons>
         <ion-title>Meine Hunde</ion-title>
+        <ion-buttons slot="end">
+          <ion-button routerLink="/app/hunde/neu" aria-label="Hund hinzufügen">
+            <ion-icon slot="icon-only" name="add" />
+          </ion-button>
+        </ion-buttons>
       </ion-toolbar>
     </ion-header>
     <ion-content>
@@ -77,11 +80,11 @@ export function dogAge(birthDate: string | null): string {
           </ion-item>
         }
       </ion-list>
-      <ion-fab slot="fixed" vertical="bottom" horizontal="end">
-        <ion-fab-button routerLink="/app/hunde/neu" aria-label="Hund hinzufügen">
-          <ion-icon name="add" />
-        </ion-fab-button>
-      </ion-fab>
+      @if (loaded() && !dogs().length) {
+        <div class="ion-padding">
+          <ion-button expand="block" routerLink="/app/hunde/neu">Hund hinzufügen</ion-button>
+        </div>
+      }
     </ion-content>
   `,
   styles: `

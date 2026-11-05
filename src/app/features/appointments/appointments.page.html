@@ -2,6 +2,13 @@
   <ion-toolbar>
     <ion-buttons slot="start"><ion-menu-button /></ion-buttons>
     <ion-title>{{ auth.schoolName() || 'Termine' }}</ion-title>
+    @if (auth.isTrainer()) {
+      <ion-buttons slot="end">
+        <ion-button (click)="create()" aria-label="Neuer Termin oder Umfrage">
+          <ion-icon slot="icon-only" name="add" />
+        </ion-button>
+      </ion-buttons>
+    }
   </ion-toolbar>
   <ion-toolbar>
     <ion-segment [value]="tab()" (ionChange)="tab.set($any($event.detail.value))">
@@ -123,13 +130,5 @@
         </ion-item>
       }
     </ion-list>
-  }
-
-  @if (auth.isTrainer()) {
-    <ion-fab slot="fixed" vertical="bottom" horizontal="end">
-      <ion-fab-button (click)="create()" aria-label="Neuer Termin oder Umfrage">
-        <ion-icon name="add" />
-      </ion-fab-button>
-    </ion-fab>
   }
 </ion-content>
