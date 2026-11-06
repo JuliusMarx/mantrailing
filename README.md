@@ -36,6 +36,10 @@ Im Entwicklungsmodus lässt sich der Trail-Editor unter `/dev/editor` ohne Login
 
 **Login:** E-Mail und Passwort, ohne Bestätigungsmail. Kund:innen treten über den Beitrittslink der Schule bei (Trainer:in → „Kunden“ → Personen-Symbol). Vergessene Passwörter setzt eine Trainerin oder ein Trainer unter „Kunden“ zurück (die App zeigt ein Einmal-Passwort an).
 
+## Zugangscode
+
+Vor der App steht eine Code-Abfrage (in `src/index.html`), dazu `noindex` für Suchmaschinen. Sie ist ein Sichtschutz, kein echter Schutz. Den Code setzt oder ändert `npm run access-code` (gespeichert wird nur ein Hash). Auch geteilte Trail-Links öffnen erst nach dem Code.
+
 ## Aufbau
 
 ```

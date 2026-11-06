@@ -8,7 +8,8 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "test:db": "node --test server/",
-    "dev": "node server/dev.mjs"
+    "dev": "node server/dev.mjs",
+    "access-code": "node scripts/set-access-code.mjs"
   },
   "private": true,
   "packageManager": "npm@11.4.2",

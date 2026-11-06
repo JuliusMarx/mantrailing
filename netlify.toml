@@ -11,6 +11,12 @@
   to = "/index.html"
   status = 200
 
+# The app sits behind an access code – keep it out of search engines.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
 [[headers]]
   for = "/ngsw-worker.js"
   [headers.values]

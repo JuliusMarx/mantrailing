@@ -1,10 +1,11 @@
 <!doctype html>
-<html lang="de">
+<html lang="de" data-locked>
   <head>
     <meta charset="utf-8" />
     <title>Mantrailing</title>
     <base href="/" />
     <meta name="viewport" content="viewport-fit=cover, width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="robots" content="noindex, nofollow" />
     <meta name="theme-color" content="#3b6e4f" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -12,8 +13,82 @@
     <link rel="apple-touch-icon" href="icons/icon-192x192.png" />
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
     <link rel="manifest" href="manifest.webmanifest" />
+    <!--
+      Access-code gate – a privacy screen, not real protection. It keeps casual visitors and search
+      engines out. Set or change the code with "npm run access-code" (only its hash is stored here).
+    -->
+    <script>
+      var ACCESS = { key: 'mantrailing.access', hash: 'aee9596e056d1aa66824821e37a1a6c35a7fc5e711e87e183e1c302d8a2f839b' };
+      try {
+        if (ACCESS.hash && localStorage.getItem(ACCESS.key) === ACCESS.hash) document.documentElement.removeAttribute('data-locked');
+      } catch (e) {}
+    </script>
+    <style>
+      html[data-locked] body > :not(#gate) { display: none !important; }
+      html:not([data-locked]) #gate { display: none; }
+      #gate {
+        display: grid; place-items: center; min-height: 100vh; padding: 1rem; margin: 0;
+        background: #f4f6f4; color: #1d2a22; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      }
+      #gate form { display: grid; gap: 0.75rem; width: min(22rem, 100%); padding: 2rem 1.5rem; border: 1px solid #d5ddd7; border-radius: 0.75rem; background: #fff; }
+      #gate h1 { margin: 0 0 0.5rem; font-size: 1.5rem; }
+      #gate label { font-weight: 600; }
+      #gate input { padding: 0.65rem 0.8rem; border: 1px solid #9aa89f; border-radius: 0.5rem; background: #fff; color: inherit; font: inherit; font-size: 1rem; }
+      #gate button { padding: 0.65rem 1rem; border: 0; border-radius: 0.5rem; background: #3b6e4f; color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+      #gate p { margin: 0; min-height: 1.5em; color: #b3261e; font-size: 0.92rem; }
+      @media (prefers-color-scheme: dark) {
+        #gate { background: #121614; color: #e6ebe7; }
+        #gate form { background: #1b211d; border-color: #2f3a33; }
+        #gate input { background: #121614; border-color: #4d5c52; }
+        #gate button { background: #7fc29b; color: #0d1a12; }
+        #gate p { color: #f2827a; }
+      }
+    </style>
   </head>
   <body>
+    <main id="gate">
+      <form>
+        <h1>Mantrailing</h1>
+        <label for="gate-code">Zugangscode</label>
+        <input id="gate-code" type="password" inputmode="numeric" autocomplete="current-password" required autofocus>
+        <button type="submit">Weiter</button>
+        <p id="gate-error" role="alert"></p>
+      </form>
+    </main>
+  <script>
+    // While locked, the tab shows only the site name, not the page title (the app keeps setting it).
+    var gateTitle = document.querySelector('#gate h1').textContent;
+    var pageTitle = document.title;
+    var titleWatch = null;
+    if (document.documentElement.hasAttribute('data-locked')) {
+      document.title = gateTitle;
+      titleWatch = new MutationObserver(function () {
+        if (document.title !== gateTitle) {
+          pageTitle = document.title;
+          document.title = gateTitle;
+        }
+      });
+      titleWatch.observe(document.head, { childList: true, characterData: true, subtree: true });
+    }
+    document.querySelector('#gate form').addEventListener('submit', async function (event) {
+      event.preventDefault();
+      var input = document.getElementById('gate-code');
+      var error = document.getElementById('gate-error');
+      var bytes = new TextEncoder().encode(ACCESS.key + ':' + input.value.trim());
+      var digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+      var hash = Array.from(digest, function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+      if (!ACCESS.hash || hash !== ACCESS.hash) {
+        error.textContent = 'Falscher Code.';
+        input.select();
+        return;
+      }
+      try { localStorage.setItem(ACCESS.key, hash); } catch (e) {}
+      document.documentElement.removeAttribute('data-locked');
+      if (titleWatch) titleWatch.disconnect();
+      document.title = pageTitle;
+      document.getElementById('main')?.focus();
+    });
+  </script>
     <app-root></app-root>
     <noscript>Bitte JavaScript aktivieren.</noscript>
   </body>
